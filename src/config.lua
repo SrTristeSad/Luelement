@@ -1,7 +1,7 @@
 return {
     id = "io.addko.luelement",
     name = "Luelement",
-    version = "0.2.1-dev",
+    version = "0.2.2-dev",
 
     elementum = {
         scheme = "http",

@@ -26,7 +26,7 @@ AddKo APK (motor Elementum aprovado e assinado)
 
 O núcleo do AddKo continua genérico. Não existe `addko.torrent` nem `addko.elementum`; existe a API `addko.engines` com permissão genérica `native_engine` e IDs de módulos já incluídos no APK.
 
-## Estado atual — 0.2.1-dev
+## Estado atual — 0.2.2-dev
 
 Já implementado no `main`:
 
@@ -139,7 +139,7 @@ BUILD_ADDKO.bat
 Resultado:
 
 ```text
-dist/Luelement-0.2.1-dev.addko
+dist/Luelement-0.2.2-dev.addko
 ```
 
 O pacote contém somente:

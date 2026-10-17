@@ -23,5 +23,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Luelement-Lua-Addon
-          path: dist/Luelement-0.2.1-dev.addko
+          path: dist/Luelement-0.2.2-dev.addko
           retention-days: 7

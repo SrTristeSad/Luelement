@@ -30,6 +30,9 @@ Já implementado no `main`:
 - listagem, adição, pausa, retomada, recheck e remoção de torrents;
 - resolução de reprodução por `/play`, capturando o redirect `/files/...`;
 - entrega da URL resultante ao player do AddKo;
+- health-check silencioso via `/torrents/list`;
+- preflight do runtime AddKo;
+- testes Lua sem dependências externas para URL, plataforma, preflight, RPC e configuração standalone;
 - diagnóstico do daemon e da plataforma.
 
 ### Ainda não validado de ponta a ponta
@@ -50,6 +53,8 @@ Não existe API especial de torrent no AddKo.
 ```text
 Plugin.start()
    ↓
+preflight do runtime
+   ↓
 abre RPC Lua em 127.0.0.1:65221
    ↓
 localiza ou baixa elementum
@@ -58,7 +63,7 @@ gera elementum-config.json
    ↓
 inicia daemon em 127.0.0.1:65220
    ↓
-/status responde
+/torrents/list responde silenciosamente
    ↓
 magnet/torrent
    ↓
@@ -68,6 +73,8 @@ magnet/torrent
    ↓
 AddKo player.play(url)
 ```
+
+> Observação: `/status` do Elementum não é usado como health-check porque essa rota abre um diálogo de status pela ponte RPC.
 
 ## Estrutura
 
@@ -82,14 +89,23 @@ Luelement/
 │   ├── daemon_manager.lua
 │   ├── elementum_client.lua
 │   ├── platform.lua
+│   ├── preflight.lua
 │   ├── rpc_bridge.lua
 │   ├── standalone_config.lua
 │   └── url.lua
+├── tests/
+│   ├── run.lua
+│   ├── platform_spec.lua
+│   ├── preflight_spec.lua
+│   ├── rpc_bridge_spec.lua
+│   ├── standalone_config_spec.lua
+│   └── url_spec.lua
 ├── native/
 │   └── README.md
 └── docs/
     ├── ADDKO_HOST_CONTRACT.md
-    └── ENGINE_INTEGRATION.md
+    ├── ENGINE_INTEGRATION.md
+    └── SMOKE_TEST_WINDOWS.md
 ```
 
 ## Binário Elementum
@@ -109,6 +125,7 @@ Também é possível empacotar um executável previamente em `native/<target>/el
 
 ```text
 home
+preflight
 status
 engine_diagnostics
 engine_start
@@ -127,6 +144,8 @@ movies_popular
 movies_top
 ```
 
+`status` é uma rota do próprio Luelement e faz health-check silencioso; ela não chama `/status` do daemon.
+
 Exemplo conceitual:
 
 ```lua
@@ -138,6 +157,16 @@ Plugin.route("play_uri", {
 
 O índice pode ser omitido. Quando o torrent possui vários arquivos, o Elementum pode solicitar seleção através da ponte RPC Lua, que encaminha o diálogo ao AddKo.
 
+## Testes
+
+Quando houver um interpretador Lua 5.4/compatível disponível na raiz do projeto:
+
+```sh
+lua tests/run.lua
+```
+
+Os testes não dependem de Kodi, Elementum ou internet; eles cobrem a camada Lua isoladamente. O smoke test real do daemon/player está documentado em `docs/SMOKE_TEST_WINDOWS.md`.
+
 ## Relação com Elementum
 
 Luelement é um projeto independente. Ele não tenta portar `xbmc`, `xbmcgui`, `xbmcplugin` nem oferecer compatibilidade genérica com addons do Kodi. A única ponte implementada é a que o **próprio daemon Elementum** precisa para conversar com UI/player.
@@ -147,4 +176,4 @@ Luelement é um projeto independente. Ele não tenta portar `xbmc`, `xbmcgui`, `
 
 ## Licença
 
-O código original do Luelement é disponibilizado sob MIT. Componentes externos continuam sujeitos às respectivas licenças e avisos.
+O código original do Luelement é disponibilizado sob MIT. Componentes externos continuam sujeitos às respectivas licenças e avisos. Veja também `THIRD_PARTY_NOTICES.md`.

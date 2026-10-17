@@ -36,6 +36,14 @@ class ElementumService : Service() {
         super.onDestroy()
     }
 
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        // Android 15 limits background dataSync foreground services to six
+        // hours per 24-hour window. Shut Elementum down cleanly instead of
+        // letting the system raise RemoteServiceException after the timeout.
+        requestShutdown(connectTimeoutMs = 500, readTimeoutMs = 1_000)
+        stopSelf(startId)
+    }
+
     private fun startEngine() {
         if (worker?.isAlive == true) return
 
@@ -81,13 +89,16 @@ class ElementumService : Service() {
         }
     }
 
-    private fun requestShutdown() {
+    private fun requestShutdown(
+        connectTimeoutMs: Int = 1_000,
+        readTimeoutMs: Int = 1_500,
+    ) {
         try {
             val connection = URL("http://127.0.0.1:65220/shutdown")
                 .openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
-            connection.connectTimeout = 1_500
-            connection.readTimeout = 2_000
+            connection.connectTimeout = connectTimeoutMs
+            connection.readTimeout = readTimeoutMs
             connection.instanceFollowRedirects = false
             connection.inputStream.use { it.readBytes() }
             connection.disconnect()

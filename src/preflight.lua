@@ -1,0 +1,115 @@
+local Preflight = {}
+
+local function is_function(value)
+    return type(value) == "function"
+end
+
+local function has_any(table_value, names)
+    if type(table_value) ~= "table" then
+        return false
+    end
+    for _, name in ipairs(names) do
+        if is_function(table_value[name]) then
+            return true
+        end
+    end
+    return false
+end
+
+local function missing_function(missing, value, label)
+    if not is_function(value) then
+        table.insert(missing, label)
+    end
+end
+
+function Preflight.check(host)
+    local api = host.api or {}
+    local missing = {}
+    local warnings = {}
+
+    local http = api.http or {}
+    missing_function(missing, http.request, "addko.http.request")
+
+    local json = api.json or {}
+    missing_function(missing, json.decode, "addko.json.decode")
+    missing_function(missing, json.encode, "addko.json.encode")
+
+    local platform = api.platform or {}
+    if platform.os == nil then
+        table.insert(missing, "addko.platform.os")
+    end
+    if platform.arch == nil then
+        table.insert(missing, "addko.platform.arch")
+    end
+
+    local paths = api.paths or {}
+    missing_function(missing, paths.plugin, "addko.paths.plugin")
+    missing_function(missing, paths.data, "addko.paths.data")
+
+    local fs = api.fs or api.files or {}
+    missing_function(missing, fs.exists, "addko.fs.exists")
+    if not has_any(fs, { "mkdirp", "mkdirs", "create_directories" }) then
+        table.insert(missing, "addko.fs.mkdirp")
+    end
+    if not has_any(fs, { "write_text", "write" }) then
+        table.insert(missing, "addko.fs.write_text")
+    end
+
+    if not is_function(http.download)
+        and not has_any(fs, { "write_bytes", "write" }) then
+        table.insert(missing, "addko.http.download ou addko.fs.write_bytes")
+    end
+
+    local process = api.process or {}
+    missing_function(missing, process.spawn, "addko.process.spawn")
+    missing_function(missing, process.stop, "addko.process.stop")
+
+    local net = api.net or {}
+    local tcp = type(net.tcp) == "table" and net.tcp or net
+    if not has_any(tcp, { "listen_lines", "listen" }) then
+        table.insert(missing, "addko.net.tcp.listen")
+    end
+    if not has_any(tcp, { "close" }) and not is_function(net.close) then
+        table.insert(warnings, "addko.net.tcp.close não disponível; o runtime deve permitir fechar o servidor RPC")
+    end
+
+    missing_function(missing, api.sleep, "addko.sleep")
+
+    local player = api.player or {}
+    missing_function(missing, player.play, "addko.player.play")
+    missing_function(missing, player.is_playing, "addko.player.is_playing")
+    missing_function(missing, player.is_paused, "addko.player.is_paused")
+    missing_function(missing, player.times, "addko.player.times")
+
+    if not is_function(http.download) then
+        table.insert(warnings, "addko.http.download ausente; o fallback pode manter o binário inteiro em memória")
+    end
+
+    local os_name = string.lower(tostring(platform.os or ""))
+    if os_name ~= "windows"
+        and os_name ~= "win"
+        and os_name ~= "win32"
+        and not has_any(fs, { "set_executable", "chmod" }) then
+        table.insert(missing, "addko.fs.set_executable/chmod (necessário fora do Windows)")
+    end
+
+    return {
+        ok = #missing == 0,
+        missing = missing,
+        warnings = warnings,
+    }
+end
+
+function Preflight.assert_ready(host)
+    local report = Preflight.check(host)
+    if report.ok then
+        return report
+    end
+
+    error(
+        "runtime AddKo incompleto para Luelement: "
+        .. table.concat(report.missing, ", ")
+    )
+end
+
+return Preflight

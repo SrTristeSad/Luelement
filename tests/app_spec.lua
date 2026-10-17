@@ -17,7 +17,7 @@ local function make_host()
                 player = true,
                 sleep = true,
                 ui = true,
-                open_uri = true,
+                native_engines = true,
                 filesystem = false,
                 process = false,
             },
@@ -56,19 +56,28 @@ local function make_host()
                     return { position = 0, duration = 0 }
                 end,
             },
-            system = {},
+            engines = {},
             sleep = function() end,
         },
     }
 
-    host.api.system.open_uri = function(uri)
-        table.insert(state.opened, uri)
-        if uri == "luelement-engine://start" then
-            state.engine_ready = true
-        elseif uri == "luelement-engine://stop" then
-            state.engine_ready = false
-        end
+    host.api.engines.available = function(id)
+        return id == "elementum"
+    end
+    host.api.engines.start = function(id)
+        assert_equal(id, "elementum")
+        table.insert(state.opened, "engine-start")
+        state.engine_ready = true
         return true
+    end
+    host.api.engines.stop = function(id)
+        assert_equal(id, "elementum")
+        table.insert(state.opened, "engine-stop")
+        state.engine_ready = false
+        return true
+    end
+    host.api.engines.status = function(id)
+        return { state = state.engine_ready and "running" or "stopped" }
     end
 
     function host:platform()
@@ -167,7 +176,7 @@ local function make_host()
     return host, state
 end
 
-test("app inicia companion Android e retorna página real", function()
+test("app inicia módulo nativo integrado e retorna página real", function()
     local host, state = make_host()
     local app = App.new(host)
 
@@ -176,7 +185,7 @@ test("app inicia companion Android e retorna página real", function()
     assert_equal(document.type, "page")
     assert_equal(document.title, "Luelement")
     assert_true(state.rpc_started)
-    assert_equal(state.opened[1], "luelement-engine://start")
+    assert_equal(state.opened[1], "engine-start")
     assert_true(state.engine_ready)
 end)
 
@@ -261,7 +270,7 @@ test("service rejeita método desconhecido", function()
     assert_contains(err, "método de serviço Luelement desconhecido")
 end)
 
-test("app stop fecha RPC e solicita parada do companion que iniciou", function()
+test("app stop fecha RPC e solicita parada do motor que iniciou", function()
     local host, state = make_host()
     local app = App.new(host)
     app:start()
@@ -270,6 +279,6 @@ test("app stop fecha RPC e solicita parada do companion que iniciou", function()
 
     assert_true(result.stopped)
     assert_true(not state.rpc_started)
-    assert_equal(state.opened[#state.opened], "luelement-engine://stop")
+    assert_equal(state.opened[#state.opened], "engine-stop")
     assert_true(not state.engine_ready)
 end)

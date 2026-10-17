@@ -86,8 +86,8 @@ local function status_text(engine_ready, engine)
         return "Motor Elementum parado"
     end
 
-    if type(engine) == "table" and engine.companion == true then
-        return "Motor ativo pelo Luelement Engine"
+    if type(engine) == "table" and engine.native_engine == true then
+        return "Motor nativo aprovado em execução"
     end
     return "Motor Elementum ativo"
 end
@@ -255,7 +255,7 @@ function Ui.diagnostics(data)
             tostring(platform.target or "?")
         )),
         { type = "divider" },
-        text("Companion Android", "title"),
+        text("Motor nativo integrado ao AddKo", "title"),
         text("Suportado: " .. tostring(companion.supported == true)),
         text("Ativo: " .. tostring(companion.ready == true)),
         text("Iniciado pelo plugin: " .. tostring(companion.started_by_us == true)),

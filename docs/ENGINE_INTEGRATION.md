@@ -35,21 +35,11 @@ Elementum executable
 
 `src/daemon_manager.lua` prepara configuração, caminhos, binário, processo e health-check.
 
-### Android companion
+### Android com módulo nativo já empacotado
 
-O AddKo Android não executa binários baixados por plugins. O fluxo é:
+O AddKo Android assina um módulo nativo aprovado na própria variante completa do APK. O plugin Lua chama `addko.engines.start("elementum")`, sem APK auxiliar, downloads de binários executáveis nem acesso direto a JNI. A permissão genérica `native_engine` e o ID `elementum` devem constar no manifesto.
 
-```text
-Luelement Lua
-   ↓ addko.system.open_uri
-luelement-engine://start
-   ↓
-Luelement Engine APK
-   ↓ JNI
-libelementum.so
-```
-
-O companion é uma aplicação separada para não colocar libtorrent no núcleo do AddKo.
+O núcleo não implementa torrent nem Kodi; o registro nativo só permite módulos previamente incorporados ao build. O serviço corre em processo Android separado.
 
 ## Por que a ponte RPC é necessária
 
@@ -165,14 +155,14 @@ commit 2bfca0cd91cdf31e94eff121f997b78ff022224c
 
 ### Android
 
-O companion usa a build compartilhada:
+O AddKo inclui a build compartilhada no APK completo:
 
 ```text
 android_arm64/elementum.so
 android_arm64/libc++_shared.so
 ```
 
-O Makefile oficial do Elementum copia `libc++_shared.so` para o build Android; `libgnustl_shared.so` aparece apenas como código antigo comentado. O Gradle do Luelement confere tamanho e Git blob SHA-1 antes de empacotar ambas as bibliotecas.
+O Makefile oficial do Elementum copia `libc++_shared.so` para o build Android; `libgnustl_shared.so` aparece apenas como código antigo comentado. O Gradle do AddKo confere tamanho e Git blob SHA-1 antes de empacotar ambas as bibliotecas.
 
 O JNI chama a função exportada oficial:
 
@@ -180,13 +170,13 @@ O JNI chama a função exportada oficial:
 startWithLogAndArgs(char *logPath, char *args)
 ```
 
-A implementação shared do Elementum reseta o estado de saída a cada start, executa `main()` e fecha os pipes ao terminar, permitindo reinicialização do engine dentro do processo do companion.
+A implementação shared do Elementum reseta o estado de saída a cada start, executa `main()` e fecha os pipes ao terminar, permitindo reinicialização do engine dentro do processo dedicado do AddKo.
 
 ## Android 15 e foreground service
 
-O companion mira API 35 e usa foreground service `dataSync`. Android 15 limita esse tipo, quando em segundo plano, a seis horas acumuladas por janela de 24 horas.
+O AddKo mira uma API Android compatível e usa foreground service `dataSync`. Android 15 limita esse tipo, quando em segundo plano, a seis horas acumuladas por janela de 24 horas.
 
-`ElementumService.onTimeout()` encerra `/shutdown` e chama `stopSelf()` rapidamente para evitar `RemoteServiceException` quando o limite do sistema é alcançado.
+`NativeEngineService.onTimeout()` encerra `/shutdown` e chama `stopSelf()` rapidamente para evitar `RemoteServiceException` quando o limite do sistema é alcançado.
 
 Isso é uma limitação do ciclo de vida Android, não do protocolo Luelement/Elementum.
 
@@ -257,7 +247,7 @@ O smoke test real precisa provar:
 
 1. `.addko` instala e abre no AddKo;
 2. `Plugin.start()` abre a ponte RPC;
-3. o engine standalone ou companion inicia sem Kodi;
+3. o engine standalone ou módulo assinado do AddKo inicia sem Kodi;
 4. `/torrents/list` responde;
 5. a UI do Luelement aparece;
 6. um magnet legal/de teste é adicionado;

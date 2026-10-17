@@ -3,107 +3,90 @@ local Companion = require("src.companion")
 local function fixture(initial_ready)
     local state = {
         ready = initial_ready == true,
-        opened = {},
+        starts = 0,
+        stops = 0,
         sleeps = 0,
     }
-
     local host = {
         api = {
-            capabilities = {
-                open_uri = true,
-            },
-            system = {},
+            capabilities = { native_engines = true },
+            engines = {},
         },
     }
+    function host:platform() return { os = "android", arch = "arm64" } end
+    function host:log(_, _) end
+    function host:sleep(_) state.sleeps = state.sleeps + 1 end
 
-    function host:platform()
-        return { os = "android", arch = "arm64" }
+    host.api.engines.available = function(name)
+        return name == "elementum"
     end
-
-    function host:log(_, _)
-    end
-
-    function host:sleep(_)
-        state.sleeps = state.sleeps + 1
-    end
-
-    host.api.system.open_uri = function(uri)
-        table.insert(state.opened, uri)
-        if uri == "luelement-engine://start" then
-            state.ready = true
-        elseif uri == "luelement-engine://stop" then
-            state.ready = false
-        end
+    host.api.engines.start = function(name)
+        assert_equal(name, "elementum")
+        state.starts = state.starts + 1
+        state.ready = true
         return true
     end
-
+    host.api.engines.stop = function(name)
+        assert_equal(name, "elementum")
+        state.stops = state.stops + 1
+        state.ready = false
+        return true
+    end
+    host.api.engines.status = function(name)
+        return { state = state.ready and "running" or "stopped" }
+    end
     local client = {}
     function client:health()
-        if not state.ready then
-            error("offline")
-        end
+        if not state.ready then error("offline") end
         return { running = true, torrent_count = 0 }
     end
-
     local config = {
-        elementum = {
-            startup_timeout_seconds = 1,
-        },
-        daemon = {
-            startup_poll_ms = 10,
-        },
-        companion = {
-            start_uri = "luelement-engine://start",
-            stop_uri = "luelement-engine://stop",
-        },
+        elementum = { startup_timeout_seconds = 1 },
+        daemon = { startup_poll_ms = 10 },
     }
-
     return Companion.new(host, client, config), state
 end
 
-test("companion Android starts engine through generic open_uri", function()
-    local companion, state = fixture(false)
-
-    assert_true(companion:is_supported())
-    local result = companion:start()
-
-    assert_true(result.companion)
+test("APK bundled native engine starts through addko.engines", function()
+    local engine, state = fixture(false)
+    assert_true(engine:is_supported())
+    local result = engine:start()
+    assert_true(result.native_engine)
     assert_true(result.started_by_plugin)
-    assert_equal(state.opened[1], "luelement-engine://start")
+    assert_equal(state.starts, 1)
     assert_true(state.ready)
 end)
 
-test("companion reuses an engine that is already running", function()
-    local companion, state = fixture(true)
-
-    local result = companion:start()
-
+test("bundled engine is reused if it is already running", function()
+    local engine, state = fixture(true)
+    local result = engine:start()
     assert_true(result.already_running)
-    assert_equal(#state.opened, 0)
-    assert_true(state.ready)
+    assert_equal(state.starts, 0)
 end)
 
-test("companion only stops an engine started by this plugin unless forced", function()
-    local companion, state = fixture(true)
-
-    local reused = companion:start()
-    assert_true(reused.already_running)
-
-    local passive = companion:stop(false)
-    assert_equal(passive.reason, "companion_not_owned")
+test("engine can only be stopped by owner unless forced", function()
+    local engine, state = fixture(true)
+    engine:start()
+    local not_owned = engine:stop(false)
+    assert_equal(not_owned.reason, "native_engine_not_owned")
     assert_true(state.ready)
-
-    local forced = companion:stop(true)
-    assert_true(forced.stopped)
-    assert_equal(state.opened[1], "luelement-engine://stop")
-    assert_true(not state.ready)
+    local stop = engine:stop(true)
+    assert_true(stop.stopped)
+    assert_equal(state.stops, 1)
 end)
 
-test("companion is disabled outside Android", function()
-    local companion, _ = fixture(false)
-    function companion.host:platform()
+test("native engine is unavailable outside Android", function()
+    local engine, _ = fixture(false)
+    function engine.host:platform()
         return { os = "windows", arch = "x64" }
     end
+    assert_true(not engine:is_supported())
+end)
 
-    assert_true(not companion:is_supported())
+test("addon requires the approved module in the AddKo build", function()
+    local engine, _ = fixture(false)
+    engine.host.api.engines.available = function() return false end
+    assert_true(not engine:is_supported())
+    local ok = pcall(function() engine:start() end)
+    assert_true(not ok)
 end)

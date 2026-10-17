@@ -90,15 +90,22 @@ function DaemonManager:ensure_directories(paths)
     end
 end
 
+function DaemonManager:prepare_executable(platform, path)
+    if platform.os ~= "windows" then
+        self.host:set_executable(path)
+    end
+    return path
+end
+
 function DaemonManager:ensure_binary(platform, paths)
     if self.host:file_exists(paths.packaged_executable) then
         self.host:log("info", "Usando binário Elementum empacotado: " .. paths.packaged_executable)
-        return paths.packaged_executable
+        return self:prepare_executable(platform, paths.packaged_executable)
     end
 
     if self.host:file_exists(paths.executable) then
         self.host:log("info", "Usando binário Elementum em cache: " .. paths.executable)
-        return paths.executable
+        return self:prepare_executable(platform, paths.executable)
     end
 
     if self.config.daemon.auto_download ~= true then
@@ -113,11 +120,7 @@ function DaemonManager:ensure_binary(platform, paths)
         error("download do binário Elementum terminou sem criar o arquivo esperado")
     end
 
-    if platform.os ~= "windows" then
-        self.host:set_executable(paths.executable)
-    end
-
-    return paths.executable
+    return self:prepare_executable(platform, paths.executable)
 end
 
 function DaemonManager:write_config(platform, paths)

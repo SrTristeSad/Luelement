@@ -15,6 +15,10 @@ function Plugin.route(name, params)
     return app:route(name, params)
 end
 
+function Plugin.service(name, params)
+    return app:service(name, params)
+end
+
 function Plugin.stop()
     return app:stop()
 end

@@ -33,6 +33,12 @@ local function complete_api()
                 close = function() end,
             },
         },
+        ui = {
+            input = function() end,
+            alert = function() end,
+            confirm = function() end,
+            select = function() end,
+        },
         player = {
             play = function() end,
             is_playing = function() end,
@@ -53,10 +59,12 @@ test("preflight informa APIs ausentes", function()
     local api = complete_api()
     api.process.spawn = nil
     api.player.play = nil
+    api.ui.select = nil
 
     local report = Preflight.check({ api = api })
     assert_equal(report.ok, false)
-    assert_true(#report.missing >= 2)
+    assert_true(#report.missing >= 3)
     assert_contains(table.concat(report.missing, "|"), "addko.process.spawn")
     assert_contains(table.concat(report.missing, "|"), "addko.player.play")
+    assert_contains(table.concat(report.missing, "|"), "addko.ui.select")
 end)

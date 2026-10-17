@@ -30,7 +30,7 @@ A camada Python original do `plugin.video.elementum` fazia duas coisas principai
 
 Portar apenas o `service.py` e ignorar `rpc.py` deixaria o daemon capaz de responder várias rotas HTTP, mas quebraria fluxos como `/play`, seleção de arquivos e acompanhamento do player.
 
-O Luelement agora implementa essa segunda responsabilidade em `src/rpc_bridge.lua`.
+O Luelement implementa essa segunda responsabilidade em `src/rpc_bridge.lua`.
 
 ## JSON-RPC usado pelo Elementum
 
@@ -117,7 +117,13 @@ Argumentos atuais:
 -disableLibrarySync
 ```
 
-O plugin só considera a inicialização concluída depois que `/status` responde.
+O plugin só considera a inicialização concluída depois que `GET /torrents/list` responde com sucesso.
+
+### Por que não usamos `/status`
+
+No Elementum, `/status` não é um endpoint de health-check. Essa rota monta as informações do daemon, chama `Dialog_Text` no host externo e só então retorna HTTP 200. Usá-la como probe faria verificações internas abrirem um diálogo no AddKo.
+
+`/torrents/list` é apropriado para o probe porque, em server mode, devolve JSON silenciosamente e funciona mesmo com zero torrents ativos.
 
 ## Binário
 
@@ -183,15 +189,16 @@ AddKo -> plugin Lua Luelement -> Elementum daemon -> libtorrent
 
 O primeiro smoke test real precisa provar, no mesmo processo do AddKo:
 
-1. `Plugin.start()` abre a ponte RPC;
+1. `Plugin.start()` passa no preflight e abre a ponte RPC;
 2. baixa/localiza `elementum.exe` no Windows x64;
-3. gera a configuração;
-4. sobe o daemon;
-5. `/status` responde;
+3. gera a configuração standalone;
+4. sobe o daemon sem Kodi instalado/rodando;
+5. `/torrents/list` responde com JSON;
 6. um magnet legal/de teste é aberto com `play_uri`;
 7. `/play` devolve redirect `/files/...`;
 8. o player do AddKo começa a reproduzir;
 9. `Player_IsPlaying`/`Player_WatchTimes` funcionam pela ponte Lua;
-10. `Plugin.stop()` encerra apenas o daemon que o Luelement iniciou.
+10. seek funciona sobre o stream HTTP;
+11. `Plugin.stop()` encerra apenas o daemon que o Luelement iniciou.
 
 Até esse teste acontecer no runtime real, o projeto deve continuar marcado como `0.2.0-dev`.

@@ -47,6 +47,7 @@ require("tests.standalone_config_spec")
 require("tests.elementum_client_spec")
 require("tests.daemon_manager_spec")
 require("tests.companion_spec")
+require("tests.ui_spec")
 
 print(string.format("\n%d teste(s), %d falha(s)", total, failed))
 if failed > 0 then

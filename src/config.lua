@@ -9,6 +9,12 @@ return {
         port = 65220,
         request_timeout_seconds = 15,
         startup_timeout_seconds = 30,
+        playback_timeout_seconds = 120,
+    },
+
+    rpc = {
+        host = "127.0.0.1",
+        port = 65221,
     },
 
     daemon = {

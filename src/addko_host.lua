@@ -64,8 +64,6 @@ function Host:download_file(url, destination)
         return destination
     end
 
-    -- Fallback simples. O runtime ideal deve implementar http.download para
-    -- evitar manter um binário de ~30 MB inteiro na memória Lua.
     local response = self:http({
         method = "GET",
         url = url,
@@ -223,6 +221,216 @@ function Host:stop_process(handle)
     local process = require_table(self.api.process, "addko.process")
     if type(process.stop) == "function" then
         process.stop(handle)
+    end
+end
+
+function Host:start_line_server(options)
+    local net = require_table(self.api.net, "addko.net")
+    local tcp = type(net.tcp) == "table" and net.tcp or net
+    local listen = tcp.listen_lines or tcp.listen
+    if type(listen) ~= "function" then
+        error("addko.net.tcp.listen não está disponível")
+    end
+
+    return listen({
+        host = options.host,
+        port = options.port,
+        framing = "lines",
+        on_message = options.on_message,
+    })
+end
+
+function Host:stop_server(handle)
+    if not handle then
+        return
+    end
+
+    local net = require_table(self.api.net, "addko.net")
+    local tcp = type(net.tcp) == "table" and net.tcp or net
+    local close = tcp.close or net.close
+    if type(close) == "function" then
+        close(handle)
+        return
+    end
+
+    if type(handle) == "table" and type(handle.close) == "function" then
+        handle:close()
+    end
+end
+
+function Host:ui_refresh()
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.refresh) == "function" then
+        ui.refresh()
+    end
+end
+
+function Host:ui_update(route)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.navigate) == "function" then
+        ui.navigate(route)
+    end
+end
+
+function Host:notify(title, message)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.notify) == "function" then
+        ui.notify({ title = title, message = message })
+        return
+    end
+    self:log("info", tostring(title) .. ": " .. tostring(message))
+end
+
+function Host:keyboard(default_value, heading, hidden)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.input) == "function" then
+        return ui.input({
+            value = default_value,
+            title = heading,
+            password = hidden == true,
+        })
+    end
+    return default_value or ""
+end
+
+function Host:dialog_ok(title, message)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.alert) == "function" then
+        ui.alert({ title = title, message = message })
+        return true
+    end
+    self:notify(title, message)
+    return true
+end
+
+function Host:dialog_confirm(title, message)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.confirm) == "function" then
+        return ui.confirm({ title = title, message = message }) == true
+    end
+    return false
+end
+
+function Host:dialog_select(title, items, preselect)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.select) == "function" then
+        local result = ui.select({
+            title = title,
+            items = items,
+            selected = preselect,
+        })
+        return tonumber(result) or -1
+    end
+    return -1
+end
+
+function Host:file_picker(title)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.pick_file) == "function" then
+        return ui.pick_file({ title = title })
+    end
+    return ""
+end
+
+function Host:progress_create(...)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.progress_create) == "function" then
+        return ui.progress_create({ args = { ... } })
+    end
+    return { cancelled = false }
+end
+
+function Host:progress_update(handle, percent, ...)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.progress_update) == "function" then
+        ui.progress_update(handle, { percent = percent, args = { ... } })
+    end
+end
+
+function Host:progress_is_cancelled(handle)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.progress_is_cancelled) == "function" then
+        return ui.progress_is_cancelled(handle) == true
+    end
+    return type(handle) == "table" and handle.cancelled == true
+end
+
+function Host:progress_close(handle)
+    local ui = self.api.ui
+    if type(ui) == "table" and type(ui.progress_close) == "function" then
+        ui.progress_close(handle)
+    end
+end
+
+function Host:player()
+    return self.api.player
+end
+
+function Host:player_play(item)
+    local player = self:player()
+    if type(player) == "table" and type(player.play) == "function" then
+        local result = player.play(item)
+        return result == nil and true or result
+    end
+    return false
+end
+
+function Host:player_file()
+    local player = self:player()
+    if type(player) == "table" and type(player.current_url) == "function" then
+        return player.current_url() or ""
+    end
+    return ""
+end
+
+function Host:player_is_playing()
+    local player = self:player()
+    if type(player) == "table" and type(player.is_playing) == "function" then
+        return player.is_playing() == true
+    end
+    return false
+end
+
+function Host:player_is_paused()
+    local player = self:player()
+    if type(player) == "table" and type(player.is_paused) == "function" then
+        return player.is_paused() == true
+    end
+    return false
+end
+
+function Host:player_watch_times()
+    local player = self:player()
+    if type(player) == "table" and type(player.times) == "function" then
+        local value = player.times() or {}
+        return {
+            watchedTime = tostring(value.position or value.watchedTime or 0),
+            videoDuration = tostring(value.duration or value.videoDuration or 0),
+            error = tostring(value.error or ""),
+        }
+    end
+    return { watchedTime = "0", videoDuration = "0", error = "" }
+end
+
+function Host:player_seek(position)
+    local player = self:player()
+    if type(player) == "table" and type(player.seek) == "function" then
+        player.seek(position)
+    end
+end
+
+function Host:player_subtitles()
+    local player = self:player()
+    if type(player) == "table" and type(player.subtitles) == "function" then
+        return player.subtitles() or {}
+    end
+    return {}
+end
+
+function Host:player_set_subtitles(urls)
+    local player = self:player()
+    if type(player) == "table" and type(player.set_subtitles) == "function" then
+        player.set_subtitles(urls)
     end
 end
 

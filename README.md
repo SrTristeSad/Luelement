@@ -52,13 +52,13 @@ Já implementado no `main`:
 - foreground service Android para manter o Elementum ativo;
 - bibliotecas Android do Elementum pinadas por commit, tamanho exato e Git blob SHA-1;
 - gerador Windows do pacote `.addko`;
-- build Windows do companion Android com Gradle pinado;
-- testes Lua isolados de URL, plataforma, preflight, RPC, configuração, cliente HTTP, daemon, companion e UI;
-- testes do host AddKo para filesystem, permissões, `system.open_uri` e UI genérica.
+- código experimental antigo do companion mantido apenas para referência histórica;
+- 41 testes Lua executados no GitHub Actions, incluindo o motor nativo aprovado;
+- testes do host AddKo para permissões, `native_engine`, filesystem e UI genérica.
 
 ## O que ainda falta validar
 
-O fluxo está implementado, mas **ainda não foi executado de ponta a ponta neste ambiente** porque aqui não há Flutter/Dart/Lua/Gradle disponíveis para rodar o AddKo, a suíte Lua e o build Android.
+A suíte Lua passou no GitHub Actions (41/41 testes). O fluxo **ainda não foi testado de ponta a ponta em aparelho Android** com o engine e player reais.
 
 O próximo marco real é um teste em Windows/aparelho Android provando:
 
@@ -149,28 +149,15 @@ src/
 
 O motor nativo não fica dentro do `.addko`.
 
-## Gerar o Luelement Engine Android
+## Motor nativo no APK do AddKo
 
-No Windows:
+Não gere nem instale um companion Android. Faça o build completo do **AddKo Android ARM64**: o Gradle incorpora as bibliotecas oficiais Elementum fixadas por hash e produz **um único APK**.
 
-```bat
-BUILD_ENGINE_ANDROID.bat
-```
+O código histórico em `android-engine/` permanece como referência, mas não é utilizado no novo fluxo.
 
-O script prepara Gradle 8.9 localmente quando necessário, usa o Android SDK instalado e gera:
+## Obter o pacote Lua atualizado
 
-```text
-dist/Luelement-Engine-0.1.0-dev-arm64.apk
-```
-
-Durante o build são baixados do commit pinado:
-
-```text
-android_arm64/elementum.so
-android_arm64/libc++_shared.so
-```
-
-Antes do APK ser gerado, o build verifica tamanho e Git blob SHA-1 de ambos.
+O workflow **Luelement Lua package** executa os testes e gera o artefato `Luelement-Lua-Addon` com o `.addko` atualizado. Use esse artefato, ou gere o pacote localmente com `BUILD_ADDKO.bat`. O arquivo preexistente em `dist/` pode estar desatualizado.
 
 ## Elementum pinado
 
@@ -187,24 +174,22 @@ No Windows/Linux/macOS, quando o host oferecer processos nativos, o Luelement po
 ```text
 Plugin.start()
    ↓
-preflight do AddKo
+ponte RPC Lua em 127.0.0.1:65221
    ↓
-abre RPC Lua em 127.0.0.1:65221
+verifica Elementum em 127.0.0.1:65220
    ↓
-testa /torrents/list
+addko.engines.available("elementum")
    ↓
-engine offline
+addko.engines.start("elementum")
    ↓
-addko.system.open_uri("luelement-engine://start")
+serviço interno de módulo assinado, em processo Android separado
    ↓
-companion inicia foreground service
+Elementum + libtorrent sobe; retorna HTTP 200 em /torrents/list
    ↓
-Elementum sobe em 127.0.0.1:65220
-   ↓
-Luelement mostra a página inicial
+Luelement apresenta sua própria interface Lua
 ```
 
-O companion fecha sua Activity imediatamente após receber o deep link, portanto o usuário volta ao AddKo automaticamente.
+O manifesto declara `native_engine` e o módulo `elementum`; o usuário autoriza a permissão no diálogo do AddKo. **Nenhum outro APK é necessário.** A build leve do AddKo não inclui o módulo.
 
 ## Reprodução
 

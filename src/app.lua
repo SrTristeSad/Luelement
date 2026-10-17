@@ -4,23 +4,10 @@ local DaemonManager = require("src.daemon_manager")
 local Companion = require("src.companion")
 local RpcBridge = require("src.rpc_bridge")
 local Preflight = require("src.preflight")
+local Ui = require("src.ui")
 
 local App = {}
 App.__index = App
-
-local function ok(data)
-    return { ok = true, data = data }
-end
-
-local function fail(code, message)
-    return {
-        ok = false,
-        error = {
-            code = code,
-            message = tostring(message),
-        },
-    }
-end
 
 local function log_warnings(host, report)
     for _, warning in ipairs(report.warnings or {}) do
@@ -32,6 +19,7 @@ function App.new(host)
     local self = setmetatable({
         host = host,
         config = Config,
+        last_engine = nil,
     }, App)
 
     self.elementum = ElementumClient.new(host, Config)
@@ -49,6 +37,21 @@ function App:preflight()
     }
 end
 
+function App:home(error_message)
+    local ready, status = self.daemon:is_ready()
+    local engine = self.last_engine or status
+    return Ui.home({
+        engine_ready = ready,
+        engine = engine,
+        companion = self.companion:diagnostics(),
+        error = error_message,
+    })
+end
+
+function App:torrent_page(message)
+    return Ui.torrents(self.elementum:torrents(), message)
+end
+
 function App:ensure_engine()
     -- Networking, the Lua RPC bridge and a real player are required in every
     -- mode. process.spawn/filesystem are required only when Luelement itself
@@ -64,12 +67,14 @@ function App:ensure_engine()
     local ready = self.daemon:is_ready()
     if ready then
         self.host:log("info", "Usando engine Elementum local já iniciado")
-        return self.daemon:start()
+        self.last_engine = self.daemon:start()
+        return self.last_engine
     end
 
     local companion_config = self.config.companion or {}
     if companion_config.auto_start ~= false and self.companion:is_supported() then
-        return self.companion:start()
+        self.last_engine = self.companion:start()
+        return self.last_engine
     end
 
     local launch_report = Preflight.assert_ready(
@@ -77,7 +82,8 @@ function App:ensure_engine()
         { launch = true }
     )
     log_warnings(self.host, launch_report)
-    return self.daemon:start()
+    self.last_engine = self.daemon:start()
+    return self.last_engine
 end
 
 function App:start()
@@ -92,17 +98,11 @@ function App:start()
             self.rpc:stop()
         end)
         self.host:log("error", "Falha ao iniciar Elementum: " .. tostring(engine))
-        return fail("elementum_start_failed", engine)
+        return Ui.error(engine)
     end
 
-    return ok({
-        route = "home",
-        engine = engine,
-        rpc = {
-            host = self.config.rpc.host,
-            port = self.config.rpc.port,
-        },
-    })
+    self.last_engine = engine
+    return self:home()
 end
 
 function App:route(name, params)
@@ -110,82 +110,88 @@ function App:route(name, params)
 
     local success, result = pcall(function()
         if name == nil or name == "" or name == "home" then
-            local ready = self.daemon:is_ready()
-            return {
-                name = "home",
-                engine_ready = ready,
-                companion = self.companion:diagnostics(),
-                sections = {
-                    { id = "torrents", title = "Torrents" },
-                    { id = "movies_popular", title = "Filmes populares" },
-                    { id = "movies_top", title = "Mais bem avaliados" },
-                },
-            }
-        elseif name == "preflight" then
-            return self:preflight()
-        elseif name == "status" then
-            return self.elementum:status()
-        elseif name == "engine_diagnostics" then
+            return self:home()
+        elseif name == "preflight" or name == "engine_diagnostics" then
             local diagnostics = self.daemon:diagnostics()
             diagnostics.rpc_started = self.rpc.server ~= nil
             diagnostics.preflight = self:preflight()
             diagnostics.companion = self.companion:diagnostics()
-            return diagnostics
+            return Ui.diagnostics(diagnostics)
+        elseif name == "status" then
+            return self:home()
         elseif name == "engine_start" then
-            return self:ensure_engine()
+            self.last_engine = self:ensure_engine()
+            return self:home()
         elseif name == "engine_stop" then
-            local daemon_result = self.daemon:stop()
-            local companion_result = self.companion:stop(true)
+            self.daemon:stop()
+            self.companion:stop(true)
             self.rpc:stop()
-            return {
-                daemon = daemon_result,
-                companion = companion_result,
-            }
+            self.last_engine = nil
+            return self:home()
         elseif name == "torrents" then
-            return self.elementum:torrents()
+            return self:torrent_page()
         elseif name == "torrent_add" then
-            self.elementum:add_torrent(params.uri, params.all_files == true)
-            return self.elementum:torrents()
+            return Ui.add_torrent()
+        elseif name == "torrent_add_submit" then
+            local uri = tostring(params.uri or "")
+            if uri == "" then
+                return Ui.add_torrent()
+            end
+            self.elementum:add_torrent(uri, params.all_files == true)
+            return self:torrent_page("Torrent adicionado.")
         elseif name == "torrent_pause" then
             self.elementum:pause_torrent(params.id)
-            return self.elementum:torrents()
+            return self:torrent_page("Torrent pausado.")
         elseif name == "torrent_resume" then
             self.elementum:resume_torrent(params.id)
-            return self.elementum:torrents()
+            return self:torrent_page("Torrent retomado.")
         elseif name == "torrent_recheck" then
             self.elementum:recheck_torrent(params.id)
-            return self.elementum:torrents()
+            return self:torrent_page("Rechecagem iniciada.")
         elseif name == "torrent_remove" then
-            self.elementum:remove_torrent(
-                params.id,
-                params.delete_torrent == true,
-                params.delete_files == true
+            local confirmed = self.host:dialog_confirm(
+                "Remover torrent?",
+                "Remover este torrent da sessão do Luelement?"
             )
-            return self.elementum:torrents()
+            if confirmed then
+                self.elementum:remove_torrent(
+                    params.id,
+                    params.delete_torrent == true,
+                    params.delete_files == true
+                )
+                return self:torrent_page("Torrent removido.")
+            end
+            return self:torrent_page()
         elseif name == "torrent_play" then
             local stream_url = self.elementum:stream_torrent(params.id, params.index)
             local started = self.host:player_play(stream_url)
-            return {
-                url = stream_url,
-                started = started,
-            }
+            if not started then
+                error("o player do AddKo recusou a reprodução")
+            end
+            return self:torrent_page("Reprodução iniciada.")
         elseif name == "play_uri" then
             local stream_url = self.elementum:stream_uri(params.uri, params.index)
             local started = self.host:player_play(stream_url)
-            return {
-                url = stream_url,
-                started = started,
-            }
+            if not started then
+                error("o player do AddKo recusou a reprodução")
+            end
+            return self:torrent_page("Reprodução iniciada.")
         elseif name == "session_pause" then
             self.elementum:pause_session()
-            return self.elementum:torrents()
+            return self:torrent_page("Sessão pausada.")
         elseif name == "session_resume" then
             self.elementum:resume_session()
-            return self.elementum:torrents()
+            return self:torrent_page("Sessão retomada.")
         elseif name == "movies_popular" then
-            return self.elementum:movies_popular(params.page or 1)
+            return Ui.movies(
+                self.elementum:movies_popular(params.page or 1),
+                "Filmes populares"
+            )
         elseif name == "movies_top" then
-            return self.elementum:movies_top(params.page or 1)
+            return Ui.movies(
+                self.elementum:movies_top(params.page or 1),
+                "Mais bem avaliados"
+            )
         end
 
         error("rota desconhecida: " .. tostring(name))
@@ -193,10 +199,10 @@ function App:route(name, params)
 
     if not success then
         self.host:log("error", tostring(result))
-        return fail("route_failed", result)
+        return Ui.error(result)
     end
 
-    return ok(result)
+    return result
 end
 
 function App:stop()
@@ -225,11 +231,12 @@ function App:stop()
     end
 
     self.host:log("info", "Encerrando frontend Luelement")
-    return ok({
+    return {
+        stopped = true,
         daemon = daemon_success and daemon_result or nil,
         companion = companion_success and companion_result or nil,
         rpc = rpc_success and rpc_result or nil,
-    })
+    }
 end
 
 return App

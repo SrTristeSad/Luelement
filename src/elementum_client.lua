@@ -184,6 +184,7 @@ function Client:resolve_stream(options)
         },
         timeout_seconds = self.config.elementum.playback_timeout_seconds or 120,
         follow_redirects = false,
+        headers_only = true,
     })
 
     local status = response_status(response)

@@ -55,6 +55,7 @@ test("resolve_stream não segue redirect e devolve URL files absoluta", function
     local url = client:stream_uri("magnet:?xt=urn:btih:ABC", 0)
 
     assert_equal(seen.follow_redirects, false)
+    assert_equal(seen.headers_only, true)
     assert_contains(seen.url, "/play?")
     assert_contains(seen.url, "index=0")
     assert_contains(seen.url, "uri=magnet%3A%3Fxt%3Durn%3Abtih%3AABC")

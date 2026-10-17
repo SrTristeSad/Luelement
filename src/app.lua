@@ -78,7 +78,7 @@ function App:ensure_engine()
     end
 
     if tostring(self.host:platform().os or ""):lower() == "android" then
-        error("O Luelement foi instalado, mas o AddKo Android ainda nao suporta carregar o motor nativo diretamente de pacotes .addko. O suporte nativo generico precisa ser implementado no AddKo; um APK auxiliar nao faz parte da solucao final.")
+        error("O Luelement requer uma build AddKo Android com o motor aprovado Elementum incluído no APK. Nenhum APK auxiliar é necessário.")
     end
 
     local launch_report = Preflight.assert_ready(

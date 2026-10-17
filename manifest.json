@@ -7,6 +7,8 @@
     "network",
     "storage",
     "media",
-    "background"
-  ]
+    "background",
+    "native_engine"
+  ],
+  "native_engines": ["elementum"]
 }

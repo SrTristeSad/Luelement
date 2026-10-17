@@ -1,6 +1,6 @@
 # Luelement
 
-> **Distribuição do produto:** Luelement é um plugin `.addko`, não um APK independente. A inicialização automática do antigo companion Android foi desativada. O pacote Lua instala no AddKo, mas **o motor nativo ainda não roda no AddKo Android atual**, que precisa de suporte genérico a módulos nativos de plugins. Não instale APK auxiliar como requisito do Luelement; o código `android-engine/` é um experimento legado, não a solução de distribuição pretendida.
+> **Distribuição:** o Luelement continua sendo um plugin Lua `.addko`. O AddKo Android inclui opcionalmente o módulo aprovado Elementum **dentro do próprio APK** na build completa. O addon não executa `.so` externo, e não requer um APK auxiliar. A integração nativa precisa ser validada em aparelho físico.
 
 
 Luelement é um plugin Lua experimental para o AddKo que usa o **Elementum** como motor nativo de torrent/streaming, sem transformar o AddKo em Kodi e sem portar o ecossistema Python do Kodi.
@@ -16,19 +16,15 @@ Luelement (Lua)
                   libtorrent / BitTorrent
 ```
 
-No Android, o motor nativo fica em um companion separado:
+No Android, o motor nativo aprovado já vem no APK do AddKo (build completa):
 
 ```text
-AddKo + Luelement.addko
-        │
-        └─ system.open_uri("luelement-engine://start")
-                         ↓
-                Luelement Engine APK
-                         ↓
-                 Elementum + libtorrent
+AddKo APK (motor Elementum aprovado e assinado)
+  └─ Luelement.addko → addko.engines.start("elementum")
+       └─ serviço Android nativo → Elementum + libtorrent
 ```
 
-O núcleo do AddKo continua genérico. Não existe `addko.torrent`, `addko.elementum` ou qualquer permissão especial para o Luelement.
+O núcleo do AddKo continua genérico. Não existe `addko.torrent` nem `addko.elementum`; existe a API `addko.engines` com permissão genérica `native_engine` e IDs de módulos já incluídos no APK.
 
 ## Estado atual — 0.2.0-dev
 
@@ -51,8 +47,8 @@ Já implementado no `main`:
 - geração de `ConfigBundle` standalone sem depender das settings do Kodi;
 - detecção de plataforma/arquitetura;
 - download/cache do binário Elementum em hosts compatíveis;
-- companion Android ARM64 (`Luelement Engine`);
-- auto-start transparente do companion via deep link genérico;
+- serviço Elementum assinado integrado ao APK ARM64 do AddKo;
+- inicialização do serviço via API Lua genérica `addko.engines`;
 - foreground service Android para manter o Elementum ativo;
 - bibliotecas Android do Elementum pinadas por commit, tamanho exato e Git blob SHA-1;
 - gerador Windows do pacote `.addko`;
@@ -184,7 +180,7 @@ repo: elgatito/elementum-binaries
 commit: 2bfca0cd91cdf31e94eff121f997b78ff022224c
 ```
 
-No Windows/Linux/macOS, quando o host oferecer processos nativos, o Luelement pode usar o launcher standalone. No Android, `process.spawn` permanece desativado no AddKo e o companion é usado no lugar.
+No Windows/Linux/macOS, quando o host oferecer processos nativos, o Luelement pode usar o launcher standalone. No Android, `process.spawn` permanece desativado; o serviço aprovado é solicitado por `addko.engines.start("elementum")`.
 
 ## Fluxo Android
 

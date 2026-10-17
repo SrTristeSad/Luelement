@@ -17,6 +17,12 @@ return {
         port = 65221,
     },
 
+    companion = {
+        auto_start = true,
+        start_uri = "luelement-engine://start",
+        stop_uri = "luelement-engine://stop",
+    },
+
     daemon = {
         auto_start = true,
         auto_download = true,

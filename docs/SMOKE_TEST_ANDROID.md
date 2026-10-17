@@ -1,39 +1,62 @@
-# Android smoke test: AddKo + Luelement no mesmo APK
+# Teste Android: AddKo + Luelement + VideoTorrent
 
-**Pré-requisitos:** um aparelho Android ARM64, um APK completo do AddKo com a extensão nativa aprovada Elementum e o pacote Lua `Luelement-0.2.0-dev.addko`. Não há companion APK.
+**Objetivo:** validar uma reprodução real por torrent, não apenas a notificação do
+serviço nativo. Nenhum outro addon é considerado concluído até este fluxo funcionar.
 
-## Preparar
+## Pacotes necessários
 
-1. Faça o build Android ARM64 do AddKo completo (`addkoIncludeElementum=true`, padrão).
-2. Confirme que o APK assinado contém `libelementum.so`, `libc++_shared.so`, `libaddko_engine_bridge.so`, além da lib Lua. A build Gradle verifica as bibliotecas Elementum contra o commit e hash fixados.
-3. Instale **somente o AddKo APK**.
-4. Gere `Luelement-0.2.0-dev.addko` com `BUILD_ADDKO.bat` do Luelement, instale em **Loja → Instalar .addko** e confirme a permissão genérica `native_engine`.
+1. **AddKo APK Android ARM64 completo**, recompilado a partir do main atual, com
+   o módulo Elementum aprovado incluído. A build leve não contém o motor.
+2. **Luelement-0.2.2-dev.addko**: addon do tipo `service` com permissão
+   `native_engine`, disponível em **Configurações → Gerenciar addons**.
+   Serviços não aparecem na tela inicial do AddKo.
+3. **VideoTorrent-0.1.3.addko**: addon de interface comum, instalado após
+   Luelement. Ele aparece no launcher como **Vídeo por Torrent**.
 
-## Inicialização
+O APK deve conter `libelementum.so`, `libc++_shared.so`,
+`libaddko_engine_bridge.so` e a biblioteca Lua. O Gradle verifica
+as bibliotecas nativas usadas pelo projeto.
 
-1. Abra Luelement na home do AddKo.
-2. Verifique `addko.engines.available("elementum") == true`.
-3. Confirme que o plugin inicia seu servidor JSON-RPC Lua em `127.0.0.1:65221`.
-4. Ele solicita `addko.engines.start("elementum")` ao serviço Android interno não exportado do AddKo.
-5. Aguarde o health check GET `http://127.0.0.1:65220/torrents/list`; a resposta deve ser HTTP 200.
+## Diagnóstico em etapas
 
-O AddKo não inicia processos ou carrega bibliotecas de dentro do pacote Lua. O serviço nativo é incluído pelo build assinado. A build leve `-PaddkoIncludeElementum=false` retorna `available=false`.
+1. **Abrir o addon.** Pressione ENTRAR em Vídeo por Torrent.
+   A tela Lua deve abrir *sem* aguardar o Elementum.
+   Se não abrir, é erro na UI/runtime, antes de qualquer conexão torrent.
+2. **Inicializar o serviço.** Toque em **Verificar novamente**. A chamada
+   `addko.plugins.call("io.addko.luelement", "health", {})` inicia o
+   serviço sob demanda, incluindo sua ponte RPC em `127.0.0.1:65221`.
+3. **Verificar motor.** O Luelement chama `addko.engines.start("elementum")`
+   se necessário. Confirmar `GET http://127.0.0.1:65220/torrents/list`
+   com HTTP 200. A notificação Android **não** comprova essa etapa.
+4. **Reprodução.** Usar um magnet ou URL `.torrent` de **vídeo legalmente
+   distribuído, com peers/seeds verificados**. O magnet incluído no
+   VideoTorrent é apenas diagnóstico: não garante seeds nem arquivo de vídeo.
+5. **Resolução da mídia.** `GET /play?uri=...` deve produzir HTTP 302 com
+   `Location: http://127.0.0.1:65220/files/...`. O cliente Lua consome
+   apenas os headers, não o corpo do vídeo.
+6. **Player.** A tela Flutter deve abrir com indicação de preparação da mídia,
+   iniciar a reprodução quando houver dados suficientes e permitir
+   pausa e seek. Em caso de falha na inicialização, deve exibir erro visível.
 
-## Exercício de vídeo/torrent legal
+## Evidências a registrar
 
-1. Adicione um magnet autorizado (por exemplo, um conteúdo de teste distribuído legalmente).
-2. Confira peers, seeds, progresso e velocidade na página Torrents.
-3. Se houver múltiplos arquivos, verifique o diálogo de seleção do host Lua.
-4. Toque em reproduzir e confira o buffering até o redirect `/files/...` em `127.0.0.1:65220`.
-5. Valide que o player do AddKo abre, reproduz, exibe duração e suporta seek HTTP.
-6. Feche o Luelement: a ponte RPC é fechada; o engine só deve parar se iniciado pelo plugin ou quando solicitada parada explícita.
+| Etapa | Evidência esperada | Se falhar |
+| --- | --- | --- |
+| ENTRAR | Tela Vídeo por Torrent | Conferir erro de Lua/UI, botão e versões |
+| Verificar novamente | Motor conectado | Conferir Luelement, permissões e APK completo |
+| Motor Android | HTTP 200 em /torrents/list | Inspecionar logs do NativeEngineService e Elementum |
+| Solicitar torrent | Metadados e peers | Confirmar seeds/tracker e licença do conteúdo |
+| GET /play | 302 e header Location | Conferir RPC e seleção do arquivo |
+| Player | Vídeo, pausa e seek | Conferir codec, URL /files, HTTP Range e log Flutter |
 
-## Segurança e ciclo de vida
+## Critério de aceitação
 
-- Desinstalar Luelement não deve apagar dados privados sem confirmação.
-- Addons sem `native_engine` e `native_engines` não devem acessar o serviço.
-- Externamente o serviço Android tem `exported=false`.
-- Verifique FGS, notificação, consumo de bateria e tempo máximo de `dataSync` no Android 15: seis horas acumuladas em segundo plano por janela de 24 horas.
-- Valide erros em lib ausente, porta ocupada, daemon que falha e processo nativo reiniciado.
+Só declarar a integração **funcional** quando um aparelho Android físico
+realizar toda a sequência: instalar → abrir UI → inicializar Luelement
+→ motor responde → obter um stream real → assistir → pausar → avançar
+→ fechar corretamente. Testes unitários e mocks não substituem essa prova.
 
-**Estado:** roteiro para teste real, não é evidência de reprodução concluída.
+**Segurança:** não permitir executar binários arbitrários dentro de .addko.
+Módulos nativos Android precisam estar previamente aprovados e assinados.
+O núcleo do AddKo continua genérico: o BitTorrent pertence à integração do
+Luelement, e não à API de interface do AddKo.

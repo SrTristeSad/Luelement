@@ -83,8 +83,10 @@ String gitBlobSha1(File value) {
 
 boolean validElementumFile(File value, Map<String, Object> expected) {
     if (!value.exists()) return false
-    if (value.length() != (expected.size as Long)) return false
-    return gitBlobSha1(value) == expected.gitBlobSha1
+    final long expectedSize = expected['size'] as Long
+    final String expectedSha = expected['gitBlobSha1'] as String
+    if (value.length() != expectedSize) return false
+    return gitBlobSha1(value) == expectedSha
 }
 
 tasks.register('prepareElementumNative') {
@@ -94,8 +96,11 @@ tasks.register('prepareElementumNative') {
         arm64Dir.mkdirs()
         elementumFiles.each { String name, Map<String, Object> expected ->
             final File destination = new File(arm64Dir, name)
+            final String expectedSha = expected['gitBlobSha1'] as String
+            final String sourceUrl = expected['url'] as String
+
             if (validElementumFile(destination, expected)) {
-                logger.lifecycle("Verified cached ${name} (${expected.gitBlobSha1})")
+                logger.lifecycle("Verified cached ${name} (${expectedSha})")
                 return
             }
 
@@ -108,7 +113,7 @@ tasks.register('prepareElementumNative') {
 
             logger.lifecycle("Downloading ${name} from pinned Elementum commit ${elementumCommit}")
             try {
-                new URL(expected.url as String).withInputStream { input ->
+                new URL(sourceUrl).withInputStream { input ->
                     temporary.withOutputStream { output ->
                         output << input
                     }
@@ -129,7 +134,7 @@ tasks.register('prepareElementumNative') {
                 if (!validElementumFile(destination, expected)) {
                     throw new GradleException("Native verification failed after move: ${destination}")
                 }
-                logger.lifecycle("Verified ${name} (${expected.gitBlobSha1})")
+                logger.lifecycle("Verified ${name} (${expectedSha})")
             } finally {
                 if (temporary.exists()) temporary.delete()
             }

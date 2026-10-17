@@ -2,6 +2,7 @@ local Config = require("src.config")
 local ElementumClient = require("src.elementum_client")
 local DaemonManager = require("src.daemon_manager")
 local RpcBridge = require("src.rpc_bridge")
+local Preflight = require("src.preflight")
 
 local App = {}
 App.__index = App
@@ -32,7 +33,16 @@ function App.new(host)
     return self
 end
 
+function App:preflight()
+    return Preflight.check(self.host)
+end
+
 function App:ensure_engine()
+    local report = Preflight.assert_ready(self.host)
+    for _, warning in ipairs(report.warnings or {}) do
+        self.host:log("warning", warning)
+    end
+
     self.rpc:start()
     return self.daemon:start()
 end
@@ -77,11 +87,14 @@ function App:route(name, params)
                     { id = "movies_top", title = "Mais bem avaliados" },
                 },
             }
+        elseif name == "preflight" then
+            return self:preflight()
         elseif name == "status" then
             return self.elementum:status()
         elseif name == "engine_diagnostics" then
             local diagnostics = self.daemon:diagnostics()
             diagnostics.rpc_started = self.rpc.server ~= nil
+            diagnostics.preflight = self:preflight()
             return diagnostics
         elseif name == "engine_start" then
             return self:ensure_engine()

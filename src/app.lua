@@ -21,6 +21,12 @@ local function fail(code, message)
     }
 end
 
+local function log_warnings(host, report)
+    for _, warning in ipairs(report.warnings or {}) do
+        host:log("warning", warning)
+    end
+end
+
 function App.new(host)
     local self = setmetatable({
         host = host,
@@ -34,16 +40,35 @@ function App.new(host)
 end
 
 function App:preflight()
-    return Preflight.check(self.host)
+    return {
+        external = Preflight.check(self.host, { launch = false }),
+        local_launch = Preflight.check(self.host, { launch = true }),
+    }
 end
 
 function App:ensure_engine()
-    local report = Preflight.assert_ready(self.host)
-    for _, warning in ipairs(report.warnings or {}) do
-        self.host:log("warning", warning)
-    end
+    -- Networking, the Lua RPC bridge and a real player are required in both
+    -- modes. process.spawn/filesystem are required only when Luelement itself
+    -- needs to install/start the daemon.
+    local external_report = Preflight.assert_ready(
+        self.host,
+        { launch = false }
+    )
+    log_warnings(self.host, external_report)
 
     self.rpc:start()
+
+    local ready = self.daemon:is_ready()
+    if ready then
+        self.host:log("info", "Usando engine Elementum local já iniciado")
+        return self.daemon:start()
+    end
+
+    local launch_report = Preflight.assert_ready(
+        self.host,
+        { launch = true }
+    )
+    log_warnings(self.host, launch_report)
     return self.daemon:start()
 end
 

@@ -1,93 +1,100 @@
 # Luelement
 
-Luelement é um plugin Lua experimental para o AddKo que usa o **daemon do Elementum** como motor nativo de torrent/streaming, sem portar o ecossistema de addons do Kodi.
+Luelement é um plugin Lua experimental para o AddKo que usa o **Elementum** como motor nativo de torrent/streaming, sem transformar o AddKo em Kodi e sem portar o ecossistema Python do Kodi.
 
 ```text
 AddKo
   ↓
 Luelement (Lua)
+  ├─ UI declarativa do AddKo
   ├─ HTTP → Elementum :65220
   └─ RPC Lua :65221 ← Elementum
-                 ↓
-        libtorrent / BitTorrent
+                         ↓
+                  libtorrent / BitTorrent
 ```
 
-O núcleo do AddKo continua genérico. Torrent, DHT, magnet, peers, buffering e gerenciamento da sessão permanecem no daemon do Elementum. A inicialização, navegação, UI, callbacks e integração com o player ficam em Lua.
+No Android, o motor nativo fica em um companion separado:
+
+```text
+AddKo + Luelement.addko
+        │
+        └─ system.open_uri("luelement-engine://start")
+                         ↓
+                Luelement Engine APK
+                         ↓
+                 Elementum + libtorrent
+```
+
+O núcleo do AddKo continua genérico. Não existe `addko.torrent`, `addko.elementum` ou qualquer permissão especial para o Luelement.
 
 ## Estado atual — 0.2.0-dev
 
 Já implementado no `main`:
 
-- manifesto `manifest.json` compatível com o formato `.addko` atual;
+- `manifest.json` compatível com o formato `.addko` atual;
+- frontend Lua modular usando o `require` seguro do AddKo;
+- primeira UI real do Luelement usando o renderer declarativo do AddKo;
+- tela inicial com estado do motor;
+- tela de torrents com progresso, status, peers, seeds e velocidades;
+- formulário para adicionar magnet/URL de torrent;
+- ações de pausa, retomada, recheck, remoção e reprodução;
 - cliente Lua da API HTTP do Elementum;
-- inicialização standalone do daemon com `-configPath`;
-- geração do `ConfigBundle` sem depender das settings do Kodi;
-- detecção de Windows/Linux/Android/macOS e arquitetura;
-- download automático do binário oficial Elementum v0.1.114, pinado em commit específico;
-- cache do binário por plataforma;
-- gerenciamento de diretórios de profile, temp, torrents, library e downloads;
-- ponte JSON-RPC 2.0 em Lua na porta `65221`, substituindo a função central do antigo `rpc.py`;
-- callbacks de diálogo, progresso e estado do player mapeados para APIs genéricas do AddKo;
-- listagem, adição, pausa, retomada, recheck e remoção de torrents;
-- resolução de reprodução por `/play`, capturando o redirect `/files/...`;
-- entrega da URL resultante ao player do AddKo;
 - health-check silencioso via `/torrents/list`;
-- preflight do runtime AddKo;
-- testes Lua sem dependências externas para URL, plataforma, preflight, RPC, configuração standalone, cliente HTTP e ciclo do daemon;
-- diagnóstico do daemon e da plataforma;
-- gerador Windows de pacote instalável `.addko`.
+- resolução de reprodução por `/play`, capturando o redirect `/files/...`;
+- ponte JSON-RPC 2.0 em Lua na porta `65221`;
+- confirmação, seleção, teclado e alertas encaminhados para UI Flutter genérica do AddKo;
+- player HTTP do AddKo com tela própria de reprodução;
+- launcher standalone do daemon para hosts que permitam processos nativos;
+- geração de `ConfigBundle` standalone sem depender das settings do Kodi;
+- detecção de plataforma/arquitetura;
+- download/cache do binário Elementum em hosts compatíveis;
+- companion Android ARM64 (`Luelement Engine`);
+- auto-start transparente do companion via deep link genérico;
+- foreground service Android para manter o Elementum ativo;
+- bibliotecas Android do Elementum pinadas por commit, tamanho exato e Git blob SHA-1;
+- gerador Windows do pacote `.addko`;
+- build Windows do companion Android com Gradle pinado;
+- testes Lua isolados de URL, plataforma, preflight, RPC, configuração, cliente HTTP, daemon, companion e UI;
+- testes do host AddKo para filesystem, permissões, `system.open_uri` e UI genérica.
 
-### Ainda não validado de ponta a ponta
+## O que ainda falta validar
 
-Este repositório já contém o fluxo necessário, porém ele **ainda não foi executado dentro do runtime Lua real do AddKo**. Para o primeiro teste completo, o AddKo precisa expor o contrato genérico documentado em `docs/ADDKO_HOST_CONTRACT.md`, principalmente:
+O fluxo está implementado, mas **ainda não foi executado de ponta a ponta neste ambiente** porque aqui não há Flutter/Dart/Lua/Gradle disponíveis para rodar o AddKo, a suíte Lua e o build Android.
 
-- HTTP com opção de não seguir redirects;
-- filesystem;
-- processos nativos;
-- servidor TCP local por linhas;
-- player;
-- temporização.
-
-Não existe API especial de torrent no AddKo.
-
-## Fluxo alvo
+O próximo marco real é um teste em Windows/aparelho Android provando:
 
 ```text
-Plugin.start()
-   ↓
-preflight do runtime
-   ↓
-abre RPC Lua em 127.0.0.1:65221
-   ↓
-localiza ou baixa elementum
-   ↓
-gera elementum-config.json
-   ↓
-inicia daemon em 127.0.0.1:65220
-   ↓
-/torrents/list responde silenciosamente
-   ↓
-magnet/torrent
-   ↓
-/play faz buffering
-   ↓
-302 Location: /files/...
-   ↓
-AddKo player.play(url)
+AddKo
+  ↓
+instala Luelement.addko
+  ↓
+abre Luelement
+  ↓
+engine sobe
+  ↓
+magnet é adicionado
+  ↓
+Elementum faz buffering
+  ↓
+302 /files/...
+  ↓
+player do AddKo reproduz
 ```
 
-> Observação: `/status` do Elementum não é usado como health-check porque essa rota abre um diálogo de status pela ponte RPC.
+Enquanto esse smoke test não passar em ambiente real, a versão continua `0.2.0-dev`.
 
 ## Estrutura
 
 ```text
 Luelement/
 ├── BUILD_ADDKO.bat
+├── BUILD_ENGINE_ANDROID.bat
 ├── manifest.json
 ├── main.lua
 ├── src/
 │   ├── addko_host.lua
 │   ├── app.lua
+│   ├── companion.lua
 │   ├── config.lua
 │   ├── daemon_manager.lua
 │   ├── elementum_client.lua
@@ -95,56 +102,129 @@ Luelement/
 │   ├── preflight.lua
 │   ├── rpc_bridge.lua
 │   ├── standalone_config.lua
+│   ├── ui.lua
 │   └── url.lua
 ├── tests/
 │   ├── run.lua
+│   ├── companion_spec.lua
 │   ├── daemon_manager_spec.lua
 │   ├── elementum_client_spec.lua
 │   ├── platform_spec.lua
 │   ├── preflight_spec.lua
 │   ├── rpc_bridge_spec.lua
 │   ├── standalone_config_spec.lua
+│   ├── ui_spec.lua
 │   └── url_spec.lua
+├── android-engine/
 ├── tools/
-│   └── build_addko.ps1
-├── native/
-│   └── README.md
+│   ├── build_addko.ps1
+│   └── build_engine_android.ps1
 └── docs/
     ├── ADDKO_HOST_CONTRACT.md
     ├── ENGINE_INTEGRATION.md
+    ├── SMOKE_TEST_ANDROID.md
     └── SMOKE_TEST_WINDOWS.md
 ```
 
-## Gerar pacote `.addko`
+## Gerar o plugin `.addko`
 
-No Windows, execute:
+No Windows:
 
 ```bat
 BUILD_ADDKO.bat
 ```
 
-O script cria:
+Resultado:
 
 ```text
 dist/Luelement-0.2.0-dev.addko
 ```
 
-O pacote contém somente o necessário em runtime (`manifest.json`, `main.lua` e `src/`). O executável do Elementum não precisa ficar dentro do `.addko`: ele pode ser baixado e armazenado pelo Luelement na primeira execução. O script também rejeita o pacote se ultrapassar o limite atual de 16 MiB do AddKo.
+O pacote contém somente:
 
-## Binário Elementum
+```text
+manifest.json
+main.lua
+src/
+```
 
-Por padrão, o Luelement não precisa guardar binários grandes neste repositório. Na primeira execução ele pode baixar apenas o executável da plataforma atual do repositório oficial `elgatito/elementum-binaries`.
+O motor nativo não fica dentro do `.addko`.
 
-A versão está atualmente pinada em:
+## Gerar o Luelement Engine Android
+
+No Windows:
+
+```bat
+BUILD_ENGINE_ANDROID.bat
+```
+
+O script prepara Gradle 8.9 localmente quando necessário, usa o Android SDK instalado e gera:
+
+```text
+dist/Luelement-Engine-0.1.0-dev-arm64.apk
+```
+
+Durante o build são baixados do commit pinado:
+
+```text
+android_arm64/elementum.so
+android_arm64/libc++_shared.so
+```
+
+Antes do APK ser gerado, o build verifica tamanho e Git blob SHA-1 de ambos.
+
+## Elementum pinado
 
 ```text
 Elementum 0.1.114
-commit 2bfca0cd91cdf31e94eff121f997b78ff022224c
+repo: elgatito/elementum-binaries
+commit: 2bfca0cd91cdf31e94eff121f997b78ff022224c
 ```
 
-Também é possível empacotar um executável previamente em `native/<target>/elementum[.exe]`; o plugin dá preferência ao binário empacotado.
+No Windows/Linux/macOS, quando o host oferecer processos nativos, o Luelement pode usar o launcher standalone. No Android, `process.spawn` permanece desativado no AddKo e o companion é usado no lugar.
 
-## Rotas internas iniciais do Luelement
+## Fluxo Android
+
+```text
+Plugin.start()
+   ↓
+preflight do AddKo
+   ↓
+abre RPC Lua em 127.0.0.1:65221
+   ↓
+testa /torrents/list
+   ↓
+engine offline
+   ↓
+addko.system.open_uri("luelement-engine://start")
+   ↓
+companion inicia foreground service
+   ↓
+Elementum sobe em 127.0.0.1:65220
+   ↓
+Luelement mostra a página inicial
+```
+
+O companion fecha sua Activity imediatamente após receber o deep link, portanto o usuário volta ao AddKo automaticamente.
+
+## Reprodução
+
+```text
+GET /play?resume=<hash>
+        ↓
+Elementum seleciona arquivo / faz buffering
+        ↓
+HTTP 302
+Location: http://127.0.0.1:65220/files/...
+        ↓
+addko.player.play(url)
+        ↓
+AddKo abre a tela de reprodução
+```
+
+Quando houver mais de um arquivo, o daemon pode chamar `Dialog_Select` pela ponte RPC. O Luelement converte isso em um diálogo Flutter genérico do AddKo.
+
+## Rotas internas
 
 ```text
 home
@@ -155,6 +235,7 @@ engine_start
 engine_stop
 torrents
 torrent_add
+torrent_add_submit
 torrent_pause
 torrent_resume
 torrent_recheck
@@ -167,36 +248,32 @@ movies_popular
 movies_top
 ```
 
-`status` é uma rota do próprio Luelement e faz health-check silencioso; ela não chama `/status` do daemon.
-
-Exemplo conceitual:
-
-```lua
-Plugin.route("play_uri", {
-    uri = "magnet:?xt=urn:btih:...",
-    index = 0,
-})
-```
-
-O índice pode ser omitido. Quando o torrent possui vários arquivos, o Elementum pode solicitar seleção através da ponte RPC Lua, que encaminha o diálogo ao AddKo.
-
 ## Testes
 
-Quando houver um interpretador Lua 5.4/compatível disponível na raiz do projeto:
+Com Lua disponível:
 
 ```sh
 lua tests/run.lua
 ```
 
-Os testes não dependem de Kodi, Elementum ou internet; eles cobrem a camada Lua isoladamente. O smoke test real do daemon/player está documentado em `docs/SMOKE_TEST_WINDOWS.md`.
+Smoke tests reais:
 
-## Relação com Elementum
+- `docs/SMOKE_TEST_WINDOWS.md`
+- `docs/SMOKE_TEST_ANDROID.md`
 
-Luelement é um projeto independente. Ele não tenta portar `xbmc`, `xbmcgui`, `xbmcplugin` nem oferecer compatibilidade genérica com addons do Kodi. A única ponte implementada é a que o **próprio daemon Elementum** precisa para conversar com UI/player.
+## Relação com Kodi
 
-- Elementum daemon: https://github.com/elgatito/elementum
-- Binários oficiais: https://github.com/elgatito/elementum-binaries
+Luelement não tenta implementar:
+
+```text
+xbmc
+xbmcgui
+xbmcplugin
+xbmcaddon
+```
+
+A ponte RPC existe apenas porque o **daemon Elementum** precisa pedir ações de UI/player ao host. Essas chamadas são convertidas para APIs genéricas do AddKo.
 
 ## Licença
 
-O código original do Luelement é disponibilizado sob MIT. Componentes externos continuam sujeitos às respectivas licenças e avisos. Veja também `THIRD_PARTY_NOTICES.md`.
+O código original do Luelement é MIT. Elementum e demais componentes externos continuam sujeitos às respectivas licenças e avisos. Veja `THIRD_PARTY_NOTICES.md`.

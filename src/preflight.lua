@@ -22,10 +22,24 @@ local function missing_function(missing, value, label)
     end
 end
 
+local function require_capability(missing, capabilities, name)
+    if type(capabilities) == "table" and capabilities[name] ~= true then
+        table.insert(missing, "capability:" .. name)
+    end
+end
+
 function Preflight.check(host)
     local api = host.api or {}
     local missing = {}
     local warnings = {}
+    local capabilities = api.capabilities
+
+    require_capability(missing, capabilities, "http")
+    require_capability(missing, capabilities, "filesystem")
+    require_capability(missing, capabilities, "tcp_server")
+    require_capability(missing, capabilities, "process")
+    require_capability(missing, capabilities, "player")
+    require_capability(missing, capabilities, "sleep")
 
     local http = api.http or {}
     missing_function(missing, http.request, "addko.http.request")
@@ -86,11 +100,22 @@ function Preflight.check(host)
     end
 
     local os_name = string.lower(tostring(platform.os or ""))
-    if os_name ~= "windows"
+    local process_available = type(capabilities) ~= "table" or capabilities.process == true
+    if process_available
+        and os_name ~= "windows"
         and os_name ~= "win"
         and os_name ~= "win32"
         and not has_any(fs, { "set_executable", "chmod" }) then
         table.insert(missing, "addko.fs.set_executable/chmod (necessário fora do Windows)")
+    end
+
+    if os_name == "android"
+        and type(capabilities) == "table"
+        and capabilities.process ~= true then
+        table.insert(
+            warnings,
+            "Android atual não executa binário nativo baixado pelo plugin; o engine precisa ser componente nativo instalado com o app"
+        )
     end
 
     return {

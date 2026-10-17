@@ -1,6 +1,7 @@
 local Config = require("src.config")
 local ElementumClient = require("src.elementum_client")
 local DaemonManager = require("src.daemon_manager")
+local Companion = require("src.companion")
 local RpcBridge = require("src.rpc_bridge")
 local Preflight = require("src.preflight")
 
@@ -35,6 +36,7 @@ function App.new(host)
 
     self.elementum = ElementumClient.new(host, Config)
     self.daemon = DaemonManager.new(host, self.elementum, Config)
+    self.companion = Companion.new(host, self.elementum, Config)
     self.rpc = RpcBridge.new(host, Config)
     return self
 end
@@ -43,13 +45,14 @@ function App:preflight()
     return {
         external = Preflight.check(self.host, { launch = false }),
         local_launch = Preflight.check(self.host, { launch = true }),
+        companion = self.companion:diagnostics(),
     }
 end
 
 function App:ensure_engine()
-    -- Networking, the Lua RPC bridge and a real player are required in both
-    -- modes. process.spawn/filesystem are required only when Luelement itself
-    -- needs to install/start the daemon.
+    -- Networking, the Lua RPC bridge and a real player are required in every
+    -- mode. process.spawn/filesystem are required only when Luelement itself
+    -- starts a desktop-style standalone daemon.
     local external_report = Preflight.assert_ready(
         self.host,
         { launch = false }
@@ -62,6 +65,11 @@ function App:ensure_engine()
     if ready then
         self.host:log("info", "Usando engine Elementum local já iniciado")
         return self.daemon:start()
+    end
+
+    local companion_config = self.config.companion or {}
+    if companion_config.auto_start ~= false and self.companion:is_supported() then
+        return self.companion:start()
     end
 
     local launch_report = Preflight.assert_ready(
@@ -106,6 +114,7 @@ function App:route(name, params)
             return {
                 name = "home",
                 engine_ready = ready,
+                companion = self.companion:diagnostics(),
                 sections = {
                     { id = "torrents", title = "Torrents" },
                     { id = "movies_popular", title = "Filmes populares" },
@@ -120,13 +129,18 @@ function App:route(name, params)
             local diagnostics = self.daemon:diagnostics()
             diagnostics.rpc_started = self.rpc.server ~= nil
             diagnostics.preflight = self:preflight()
+            diagnostics.companion = self.companion:diagnostics()
             return diagnostics
         elseif name == "engine_start" then
             return self:ensure_engine()
         elseif name == "engine_stop" then
             local daemon_result = self.daemon:stop()
+            local companion_result = self.companion:stop(true)
             self.rpc:stop()
-            return daemon_result
+            return {
+                daemon = daemon_result,
+                companion = companion_result,
+            }
         elseif name == "torrents" then
             return self.elementum:torrents()
         elseif name == "torrent_add" then
@@ -194,6 +208,14 @@ function App:stop()
         self.host:log("warning", "Falha ao encerrar daemon: " .. tostring(daemon_result))
     end
 
+    local companion_success, companion_result = pcall(function()
+        return self.companion:stop(false)
+    end)
+
+    if not companion_success then
+        self.host:log("warning", "Falha ao encerrar companion: " .. tostring(companion_result))
+    end
+
     local rpc_success, rpc_result = pcall(function()
         return self.rpc:stop()
     end)
@@ -205,6 +227,7 @@ function App:stop()
     self.host:log("info", "Encerrando frontend Luelement")
     return ok({
         daemon = daemon_success and daemon_result or nil,
+        companion = companion_success and companion_result or nil,
         rpc = rpc_success and rpc_result or nil,
     })
 end

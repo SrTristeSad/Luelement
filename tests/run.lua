@@ -45,6 +45,7 @@ require("tests.preflight_spec")
 require("tests.rpc_bridge_spec")
 require("tests.standalone_config_spec")
 require("tests.elementum_client_spec")
+require("tests.daemon_manager_spec")
 
 print(string.format("\n%d teste(s), %d falha(s)", total, failed))
 if failed > 0 then

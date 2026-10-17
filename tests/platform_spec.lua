@@ -1,0 +1,26 @@
+local Platform = require("src.platform")
+
+test("platform mapeia Windows amd64 para windows_x64", function()
+    local value = Platform.normalize({ os = "windows", arch = "amd64" })
+    assert_equal(value.target, "windows_x64")
+    assert_equal(value.executable, "elementum.exe")
+end)
+
+test("platform mapeia Android armv7 para android_arm", function()
+    local value = Platform.normalize({ os = "android", arch = "armv7" })
+    assert_equal(value.target, "android_arm")
+    assert_equal(value.executable, "elementum")
+end)
+
+test("platform mapeia Linux aarch64 para linux_arm64", function()
+    local value = Platform.normalize({ os = "linux", arch = "aarch64" })
+    assert_equal(value.target, "linux_arm64")
+end)
+
+test("platform rejeita arquitetura desconhecida", function()
+    local ok, err = pcall(function()
+        Platform.normalize({ os = "linux", arch = "mips" })
+    end)
+    assert_equal(ok, false)
+    assert_contains(err, "arquitetura não suportada")
+end)

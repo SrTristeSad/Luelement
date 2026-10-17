@@ -143,11 +143,13 @@ function DaemonManager:spawn(binary, paths)
         "-logPath=" .. paths.log,
         "-localHost=" .. self.config.elementum.host,
         "-localPort=" .. tostring(self.config.elementum.port),
+        "-remoteHost=" .. self.config.rpc.host,
+        "-remotePort=" .. tostring(self.config.rpc.port),
         "-disableParentProcessWatcher",
         "-disableLibrarySync",
     }
 
-    self.host:log("info", "Iniciando daemon Elementum standalone")
+    self.host:log("info", "Iniciando daemon Elementum standalone com ponte RPC Lua")
     self.handle = self.host:spawn_process({
         path = binary,
         args = args,
@@ -226,6 +228,7 @@ function DaemonManager:start()
         status = result,
         platform = platform.target,
         log = paths.log,
+        rpc = string.format("%s:%d", self.config.rpc.host, self.config.rpc.port),
     }
 end
 
@@ -277,6 +280,7 @@ function DaemonManager:diagnostics()
         owned = self.owned,
         platform = platform,
         paths = paths,
+        rpc = self.config.rpc,
         binary_url = Platform.binary_url(self.config, platform),
     }
 end

@@ -209,6 +209,58 @@ test("app resolve redirect do Elementum e entrega stream ao player", function()
     assert_equal(state.played, "http://127.0.0.1:65220/files/test.mp4")
 end)
 
+test("service health expõe estado do engine para plugin dependente", function()
+    local host, state = make_host()
+    local app = App.new(host)
+    app:start()
+
+    local health = app:service("health", {})
+
+    assert_true(health.ready)
+    assert_true(state.engine_ready)
+    assert_true(type(health.companion) == "table")
+end)
+
+test("service stream devolve URL local sem abrir player", function()
+    local host, state = make_host()
+    local app = App.new(host)
+    app:start()
+
+    local url = app:service("stream", {
+        uri = "magnet:?xt=urn:btih:0123456789abcdef",
+    })
+
+    assert_equal(url, "http://127.0.0.1:65220/files/test.mp4")
+    assert_equal(state.played, nil)
+end)
+
+test("service play resolve stream e usa player do próprio Luelement", function()
+    local host, state = make_host()
+    local app = App.new(host)
+    app:start()
+
+    local result = app:service("play", {
+        uri = "magnet:?xt=urn:btih:0123456789abcdef",
+    })
+
+    assert_true(result.started)
+    assert_equal(result.url, "http://127.0.0.1:65220/files/test.mp4")
+    assert_equal(state.played, result.url)
+end)
+
+test("service rejeita método desconhecido", function()
+    local host, _ = make_host()
+    local app = App.new(host)
+    app:start()
+
+    local ok, err = pcall(function()
+        app:service("root_shell", {})
+    end)
+
+    assert_true(not ok)
+    assert_contains(err, "método de serviço Luelement desconhecido")
+end)
+
 test("app stop fecha RPC e solicita parada do companion que iniciou", function()
     local host, state = make_host()
     local app = App.new(host)

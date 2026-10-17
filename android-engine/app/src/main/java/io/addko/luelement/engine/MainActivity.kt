@@ -21,17 +21,27 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (handleDeepLink(intent)) {
+            finish()
+            return
+        }
+
         setContentView(buildUi())
         requestNotificationPermissionIfNeeded()
-        handleIntent(intent)
         refreshStatus()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleIntent(intent)
-        refreshStatus()
+        if (handleDeepLink(intent)) {
+            finish()
+            return
+        }
+        if (::status.isInitialized) {
+            refreshStatus()
+        }
     }
 
     private fun buildUi(): LinearLayout {
@@ -94,17 +104,19 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun handleIntent(intent: Intent?) {
-        if (intent?.action != Intent.ACTION_VIEW) return
-        when (intent.data?.host?.lowercase()) {
+    private fun handleDeepLink(intent: Intent?): Boolean {
+        if (intent?.action != Intent.ACTION_VIEW) return false
+
+        return when (intent.data?.host?.lowercase()) {
             "start" -> {
                 startEngine()
-                status.text = "Iniciando pelo AddKo…"
+                true
             }
             "stop" -> {
                 stopEngine()
-                status.text = "Encerrando pelo AddKo…"
+                true
             }
+            else -> false
         }
     }
 
@@ -142,10 +154,12 @@ class MainActivity : Activity() {
             }
 
             runOnUiThread {
-                status.text = if (running) {
-                    "Motor ativo • 127.0.0.1:65220"
-                } else {
-                    "Motor parado"
+                if (!isFinishing && ::status.isInitialized) {
+                    status.text = if (running) {
+                        "Motor ativo • 127.0.0.1:65220"
+                    } else {
+                        "Motor parado"
+                    }
                 }
             }
         }
@@ -158,7 +172,9 @@ class MainActivity : Activity() {
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
             }
-            refreshStatus()
+            if (!isFinishing) {
+                refreshStatus()
+            }
         }
     }
 

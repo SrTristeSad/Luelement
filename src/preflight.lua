@@ -28,18 +28,24 @@ local function require_capability(missing, capabilities, name)
     end
 end
 
-function Preflight.check(host)
+function Preflight.check(host, options)
+    options = options or {}
+    local launch = options.launch ~= false
+
     local api = host.api or {}
     local missing = {}
     local warnings = {}
     local capabilities = api.capabilities
 
     require_capability(missing, capabilities, "http")
-    require_capability(missing, capabilities, "filesystem")
     require_capability(missing, capabilities, "tcp_server")
-    require_capability(missing, capabilities, "process")
     require_capability(missing, capabilities, "player")
     require_capability(missing, capabilities, "sleep")
+
+    if launch then
+        require_capability(missing, capabilities, "filesystem")
+        require_capability(missing, capabilities, "process")
+    end
 
     local http = api.http or {}
     missing_function(missing, http.request, "addko.http.request")
@@ -61,22 +67,24 @@ function Preflight.check(host)
     missing_function(missing, paths.data, "addko.paths.data")
 
     local fs = api.fs or api.files or {}
-    missing_function(missing, fs.exists, "addko.fs.exists")
-    if not has_any(fs, { "mkdirp", "mkdirs", "create_directories" }) then
-        table.insert(missing, "addko.fs.mkdirp")
-    end
-    if not has_any(fs, { "write_text", "write" }) then
-        table.insert(missing, "addko.fs.write_text")
-    end
+    if launch then
+        missing_function(missing, fs.exists, "addko.fs.exists")
+        if not has_any(fs, { "mkdirp", "mkdirs", "create_directories" }) then
+            table.insert(missing, "addko.fs.mkdirp")
+        end
+        if not has_any(fs, { "write_text", "write" }) then
+            table.insert(missing, "addko.fs.write_text")
+        end
 
-    if not is_function(http.download)
-        and not has_any(fs, { "write_bytes", "write" }) then
-        table.insert(missing, "addko.http.download ou addko.fs.write_bytes")
-    end
+        if not is_function(http.download)
+            and not has_any(fs, { "write_bytes", "write" }) then
+            table.insert(missing, "addko.http.download ou addko.fs.write_bytes")
+        end
 
-    local process = api.process or {}
-    missing_function(missing, process.spawn, "addko.process.spawn")
-    missing_function(missing, process.stop, "addko.process.stop")
+        local process = api.process or {}
+        missing_function(missing, process.spawn, "addko.process.spawn")
+        missing_function(missing, process.stop, "addko.process.stop")
+    end
 
     local net = api.net or {}
     local tcp = type(net.tcp) == "table" and net.tcp or net
@@ -95,13 +103,14 @@ function Preflight.check(host)
     missing_function(missing, player.is_paused, "addko.player.is_paused")
     missing_function(missing, player.times, "addko.player.times")
 
-    if not is_function(http.download) then
+    if launch and not is_function(http.download) then
         table.insert(warnings, "addko.http.download ausente; o fallback pode manter o binário inteiro em memória")
     end
 
     local os_name = string.lower(tostring(platform.os or ""))
     local process_available = type(capabilities) ~= "table" or capabilities.process == true
-    if process_available
+    if launch
+        and process_available
         and os_name ~= "windows"
         and os_name ~= "win"
         and os_name ~= "win32"
@@ -112,21 +121,29 @@ function Preflight.check(host)
     if os_name == "android"
         and type(capabilities) == "table"
         and capabilities.process ~= true then
-        table.insert(
-            warnings,
-            "Android atual não executa binário nativo baixado pelo plugin; o engine precisa ser componente nativo instalado com o app"
-        )
+        if launch then
+            table.insert(
+                warnings,
+                "Android não executa binário nativo baixado pelo plugin; use um engine local nativo/companion já iniciado"
+            )
+        else
+            table.insert(
+                warnings,
+                "Modo externo: o Luelement pode usar um engine local já iniciado sem process.spawn"
+            )
+        end
     end
 
     return {
         ok = #missing == 0,
+        launch = launch,
         missing = missing,
         warnings = warnings,
     }
 end
 
-function Preflight.assert_ready(host)
-    local report = Preflight.check(host)
+function Preflight.assert_ready(host, options)
+    local report = Preflight.check(host, options)
     if report.ok then
         return report
     end

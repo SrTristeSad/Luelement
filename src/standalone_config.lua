@@ -166,7 +166,9 @@ function StandaloneConfig.build(config, platform, paths, locale)
             OS = platform.os,
             Arch = platform.arch,
             Version = "",
-            Kodi = 0,
+            -- Elementum usa este número apenas para branches internos de
+            -- compatibilidade. Não significa que Kodi esteja instalado.
+            Kodi = 20,
             Build = "Luelement",
         },
         Settings = default_settings(paths),

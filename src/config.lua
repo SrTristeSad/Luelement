@@ -18,7 +18,7 @@ return {
     },
 
     companion = {
-        auto_start = true,
+        auto_start = false,
         start_uri = "luelement-engine://start",
         stop_uri = "luelement-engine://stop",
     },

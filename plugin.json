@@ -2,10 +2,10 @@
   "schema": "addko.plugin.v2-draft",
   "id": "io.addko.luelement",
   "name": "Luelement",
-  "version": "0.1.0-dev",
+  "version": "0.2.0-dev",
   "runtime": "lua",
   "entry": "main.lua",
-  "description": "Frontend Lua para o daemon Elementum, pensado para o AddKo.",
+  "description": "Plugin Lua para AddKo com daemon Elementum standalone, streaming P2P e ponte RPC própria.",
   "author": "SrTristeSad",
   "homepage": "https://github.com/SrTristeSad/Luelement"
 }

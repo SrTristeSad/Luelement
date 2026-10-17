@@ -6,6 +6,9 @@ local function default_settings(paths)
         library_path = paths.library,
         torrents_path = paths.torrents,
 
+        play_resume_action = 1,
+        play_resume_back = 0,
+
         download_storage = 1,
         download_file_strategy = 0,
         keep_downloading = 1,
@@ -18,6 +21,8 @@ local function default_settings(paths)
         auto_adjust_memory_size = true,
         auto_kodi_buffer_size = false,
         auto_adjust_buffer_size = false,
+        min_candidate_size = 100,
+        min_candidate_show_size = 4,
         buffer_size = 20,
         end_buffer_size = 4,
         buffer_timeout = 60,
@@ -84,6 +89,7 @@ local function default_settings(paths)
         listen_interfaces = "",
         outgoing_interfaces = "",
         encryption_policy = 0,
+        spoof_user_agent = 0,
 
         max_upload_rate = 0,
         max_download_rate = 0,
@@ -91,7 +97,7 @@ local function default_settings(paths)
         connections_limit = 0,
         conntracker_limit_auto = true,
         conntracker_limit = 0,
-        session_save = 10,
+        session_save = 15,
 
         tuned_storage = true,
         disk_cache_size = 12,

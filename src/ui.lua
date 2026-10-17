@@ -23,6 +23,16 @@ local function button(label, route, params, options)
         submit_form = options.submit_form == true,
         variant = options.variant or "tonal",
         enabled = options.enabled ~= false,
+        navigation = options.navigation or "replace",
+    }
+end
+
+local function back_button(label)
+    return {
+        type = "button",
+        label = label or "Voltar",
+        variant = "text",
+        navigation = "pop",
     }
 end
 
@@ -104,12 +114,21 @@ function Ui.home(options)
         end
     else
         table.insert(children, row({
-            button("Torrents", "torrents", nil, { variant = "primary" }),
-            button("Adicionar magnet", "torrent_add"),
+            button("Torrents", "torrents", nil, {
+                variant = "primary",
+                navigation = "push",
+            }),
+            button("Adicionar magnet", "torrent_add", nil, {
+                navigation = "push",
+            }),
         }))
         table.insert(children, row({
-            button("Filmes populares", "movies_popular"),
-            button("Diagnóstico", "engine_diagnostics"),
+            button("Filmes populares", "movies_popular", nil, {
+                navigation = "push",
+            }),
+            button("Diagnóstico", "engine_diagnostics", nil, {
+                navigation = "push",
+            }),
         }))
         table.insert(children, button("Parar motor", "engine_stop", nil, {
             variant = "outline",
@@ -139,7 +158,7 @@ function Ui.add_torrent()
             submit_form = true,
             variant = "primary",
         }),
-        button("Voltar", "home", nil, { variant = "text" }),
+        back_button(),
     })
 end
 
@@ -148,7 +167,7 @@ function Ui.torrents(torrents, message)
     local children = {
         row({
             button("Atualizar", "torrents", nil, { variant = "primary" }),
-            button("Adicionar", "torrent_add"),
+            button("Adicionar", "torrent_add", nil, { navigation = "push" }),
         }),
     }
 
@@ -213,7 +232,7 @@ function Ui.torrents(torrents, message)
         ))
     end
 
-    table.insert(children, button("Voltar", "home", nil, { variant = "text" }))
+    table.insert(children, back_button())
     return page("Torrents", children)
 end
 
@@ -243,7 +262,7 @@ function Ui.diagnostics(data)
         button("Atualizar diagnóstico", "engine_diagnostics", nil, {
             variant = "primary",
         }),
-        button("Voltar", "home", nil, { variant = "text" }),
+        back_button(),
     })
 end
 
@@ -273,7 +292,7 @@ function Ui.movies(view, title)
     if #children == 0 then
         table.insert(children, text("Nenhum item retornado pelo engine."))
     end
-    table.insert(children, button("Voltar", "home", nil, { variant = "text" }))
+    table.insert(children, back_button())
     return page(title or "Filmes", children)
 end
 
@@ -284,7 +303,9 @@ function Ui.error(message)
         button("Tentar novamente", "engine_start", nil, {
             variant = "primary",
         }),
-        button("Diagnóstico", "engine_diagnostics"),
+        button("Diagnóstico", "engine_diagnostics", nil, {
+            navigation = "push",
+        }),
     })
 end
 

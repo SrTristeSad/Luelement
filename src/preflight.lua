@@ -41,6 +41,7 @@ function Preflight.check(host, options)
     require_capability(missing, capabilities, "tcp_server")
     require_capability(missing, capabilities, "player")
     require_capability(missing, capabilities, "sleep")
+    require_capability(missing, capabilities, "ui")
 
     if launch then
         require_capability(missing, capabilities, "filesystem")
@@ -94,6 +95,12 @@ function Preflight.check(host, options)
     if not has_any(tcp, { "close" }) and not is_function(net.close) then
         table.insert(warnings, "addko.net.tcp.close não disponível; o runtime deve permitir fechar o servidor RPC")
     end
+
+    local ui = api.ui or {}
+    missing_function(missing, ui.input, "addko.ui.input")
+    missing_function(missing, ui.alert, "addko.ui.alert")
+    missing_function(missing, ui.confirm, "addko.ui.confirm")
+    missing_function(missing, ui.select, "addko.ui.select")
 
     missing_function(missing, api.sleep, "addko.sleep")
 

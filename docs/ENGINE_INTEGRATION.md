@@ -1,17 +1,17 @@
-# Integração com o daemon Elementum
+# Integração com o engine Elementum
 
 ## Arquitetura escolhida
 
 ```text
 AddKo runtime
     │
-    ├── executa main.lua
+    ├── executa Luelement/main.lua
     │
     ▼
 Luelement
     │
     ├── HTTP client ────────────────► 127.0.0.1:65220
-    │                                  Elementum daemon
+    │                                  Elementum
     │                                      │
     └── JSON-RPC server ◄──────────── 127.0.0.1:65221
                                            │
@@ -21,38 +21,52 @@ Luelement
 
 Não existe Kodi entre essas camadas.
 
+## Duas formas de hospedar o engine
+
+### Standalone
+
+Em hosts que expõem processos nativos genéricos:
+
+```text
+Luelement Lua
+   ↓ process.spawn
+Elementum executable
+```
+
+`src/daemon_manager.lua` prepara configuração, caminhos, binário, processo e health-check.
+
+### Android companion
+
+O AddKo Android não executa binários baixados por plugins. O fluxo é:
+
+```text
+Luelement Lua
+   ↓ addko.system.open_uri
+luelement-engine://start
+   ↓
+Luelement Engine APK
+   ↓ JNI
+libelementum.so
+```
+
+O companion é uma aplicação separada para não colocar libtorrent no núcleo do AddKo.
+
 ## Por que a ponte RPC é necessária
 
-A camada Python original do `plugin.video.elementum` fazia duas coisas principais:
+A camada Python original do `plugin.video.elementum` fazia duas responsabilidades relevantes:
 
-1. iniciava/monitorava o binário Elementum;
+1. iniciava/monitorava o engine;
 2. abria um servidor JSON-RPC externo na porta `65221` para o daemon pedir ações de UI/player.
 
-Portar apenas o `service.py` e ignorar `rpc.py` deixaria o daemon capaz de responder várias rotas HTTP, mas quebraria fluxos como `/play`, seleção de arquivos e acompanhamento do player.
+O Luelement substitui a segunda responsabilidade por `src/rpc_bridge.lua`.
 
-O Luelement implementa essa segunda responsabilidade em `src/rpc_bridge.lua`.
-
-## JSON-RPC usado pelo Elementum
-
-O daemon envia mensagens JSON-RPC 2.0 sobre TCP, uma por linha:
-
-```json
-{"jsonrpc":"2.0","method":"Ping","params":[],"id":1}
-```
-
-O Luelement responde:
-
-```json
-{"jsonrpc":"2.0","id":1,"result":true}
-```
-
-A ponte implementa inicialmente os callbacks necessários para:
+A ponte cobre os métodos usados pela camada original para:
 
 - ping/reset/refresh;
 - notificações;
 - teclado;
 - confirmações e seleção;
-- progresso de buffering;
+- progresso;
 - estado do player;
 - posição/duração;
 - seek;
@@ -60,30 +74,48 @@ A ponte implementa inicialmente os callbacks necessários para:
 - propriedades temporárias;
 - plataforma e informações do plugin.
 
-Recursos específicos do Kodi que não fazem sentido no AddKo retornam fallback neutro ou permanecem desativados pela configuração standalone.
+Métodos específicos de Kodi sem equivalente útil recebem fallback neutro quando seguro.
 
-## Como o daemon encontra a ponte Lua
+## Framing JSON-RPC
 
-O Luelement inicia o daemon com:
+O cliente Go do Elementum usa `json.Encoder.Encode` e `json.Decoder.Decode` sobre a conexão TCP. Portanto documentos JSON separados por newline/whitespace são compatíveis.
+
+Exemplo:
+
+```json
+{"jsonrpc":"2.0","method":"Ping","params":[],"id":1}
+```
+
+Resposta:
+
+```json
+{"jsonrpc":"2.0","id":1,"result":true}
+```
+
+O host AddKo permite ao plugin ouvir apenas em loopback.
+
+## Como o engine encontra a ponte Lua
+
+Argumentos:
 
 ```text
 -remoteHost=127.0.0.1
 -remotePort=65221
 ```
 
-Isso registra diretamente um host externo no Elementum. Não é necessário abrir/emular o JSON-RPC do Kodi na porta `9090` para o fluxo básico do Luelement.
+Não é necessário abrir/emular o JSON-RPC do Kodi na porta `9090`.
 
 ## Configuração standalone
 
-O daemon recebe obrigatoriamente:
+O engine recebe:
 
 ```text
 -configPath=<...>/elementum-config.json
 ```
 
-Com `-configPath`, o Elementum carrega `ConfigBundle` de JSON/YAML em vez de buscar `AddonInfo` e settings no Kodi.
+Com `-configPath`, o Elementum carrega `ConfigBundle` de JSON/YAML em vez de buscar as settings no Kodi.
 
-`src/standalone_config.lua` gera:
+`src/standalone_config.lua` e `EngineConfig.kt` geram:
 
 ```text
 Info
@@ -94,11 +126,9 @@ SecondLanguage
 Region
 ```
 
-A biblioteca Kodi/STRM e sincronização de biblioteca ficam desativadas nesta fase.
+Biblioteca Kodi/STRM e sincronização de biblioteca ficam desativadas.
 
-## Inicialização do daemon
-
-Argumentos atuais:
+## Argumentos atuais
 
 ```text
 -configPath=...
@@ -117,17 +147,15 @@ Argumentos atuais:
 -disableLibrarySync
 ```
 
-O plugin só considera a inicialização concluída depois que `GET /torrents/list` responde com sucesso.
+A inicialização só é considerada pronta depois que `GET /torrents/list` responde.
 
-### Por que não usamos `/status`
+### Por que não `/status`
 
-No Elementum, `/status` não é um endpoint de health-check. Essa rota monta as informações do daemon, chama `Dialog_Text` no host externo e só então retorna HTTP 200. Usá-la como probe faria verificações internas abrirem um diálogo no AddKo.
+`/status` abre um diálogo de status pelo host RPC antes de responder. Usá-lo como probe faria o health-check interno abrir UI.
 
-`/torrents/list` é apropriado para o probe porque, em server mode, devolve JSON silenciosamente e funciona mesmo com zero torrents ativos.
+`/torrents/list` devolve JSON silenciosamente e funciona mesmo com zero torrents.
 
-## Binário
-
-Versão pinada para a primeira prova real:
+## Engine pinado
 
 ```text
 Elementum 0.1.114
@@ -135,11 +163,36 @@ elgatito/elementum-binaries
 commit 2bfca0cd91cdf31e94eff121f997b78ff022224c
 ```
 
-O Luelement procura primeiro um binário empacotado e depois um binário já armazenado no data dir. Se não encontrar, pode baixar apenas o executável da plataforma atual.
+### Android
+
+O companion usa a build compartilhada:
+
+```text
+android_arm64/elementum.so
+android_arm64/libc++_shared.so
+```
+
+O Makefile oficial do Elementum copia `libc++_shared.so` para o build Android; `libgnustl_shared.so` aparece apenas como código antigo comentado. O Gradle do Luelement confere tamanho e Git blob SHA-1 antes de empacotar ambas as bibliotecas.
+
+O JNI chama a função exportada oficial:
+
+```c
+startWithLogAndArgs(char *logPath, char *args)
+```
+
+A implementação shared do Elementum reseta o estado de saída a cada start, executa `main()` e fecha os pipes ao terminar, permitindo reinicialização do engine dentro do processo do companion.
+
+## Android 15 e foreground service
+
+O companion mira API 35 e usa foreground service `dataSync`. Android 15 limita esse tipo, quando em segundo plano, a seis horas acumuladas por janela de 24 horas.
+
+`ElementumService.onTimeout()` encerra `/shutdown` e chama `stopSelf()` rapidamente para evitar `RemoteServiceException` quando o limite do sistema é alcançado.
+
+Isso é uma limitação do ciclo de vida Android, não do protocolo Luelement/Elementum.
 
 ## Reprodução direta
 
-Fluxo implementado em `ElementumClient:resolve_stream`:
+Fluxo de `ElementumClient:resolve_stream`:
 
 ```text
 GET /play?uri=<magnet>&index=0
@@ -153,52 +206,66 @@ Location: http://127.0.0.1:65220/files/<arquivo>
            │
            ▼
 addko.player.play(url)
+           │
+           ▼
+AddKo abre a superfície de vídeo
 ```
 
-A chamada HTTP precisa usar `follow_redirects=false`. Caso contrário o cliente HTTP pode começar a consumir o stream no lugar do player.
+A chamada HTTP usa `follow_redirects=false`; caso contrário o cliente HTTP consumiria o stream no lugar do player.
 
-Também existe reprodução de torrent já ativo via hash (`resume`).
+Também existe reprodução de torrent ativo via hash (`resume`).
 
 ## Seleção de arquivo
 
-Para o primeiro teste podemos fornecer explicitamente `index=0`.
+Quando o índice é omitido e há mais de um candidato, o daemon pode chamar `Dialog_Select` pela ponte RPC. O Luelement converte isso em `addko.ui.select`, que já possui diálogo Flutter no AddKo.
 
-Quando o índice é omitido e há mais de um candidato, o daemon pode chamar `Dialog_Select` pela ponte RPC. O Luelement converte isso em `addko.ui.select`.
+## UI
+
+O Luelement já retorna documentos declarativos reais do AddKo:
+
+- home/estado do engine;
+- torrents;
+- formulário de magnet;
+- diagnóstico;
+- catálogo inicial de filmes.
+
+A árvore da lista de torrents é limitada para permanecer abaixo do limite de complexidade de UI do host.
 
 ## Escopo intencional
 
-Não estamos tentando fazer:
+Não estamos fazendo:
 
 ```text
 AddKo -> emulador de Kodi -> addon Python -> Elementum
 ```
 
-Nem:
+nem:
 
 ```text
 AddKo core -> BitTorrent/libtorrent
 ```
 
-O desenho permanece:
+O desenho continua:
 
 ```text
-AddKo -> plugin Lua Luelement -> Elementum daemon -> libtorrent
+AddKo -> Luelement Lua -> Elementum -> libtorrent
 ```
 
 ## Critério para chamar 0.2 de funcional
 
-O primeiro smoke test real precisa provar, no mesmo processo do AddKo:
+O smoke test real precisa provar:
 
-1. `Plugin.start()` passa no preflight e abre a ponte RPC;
-2. baixa/localiza `elementum.exe` no Windows x64;
-3. gera a configuração standalone;
-4. sobe o daemon sem Kodi instalado/rodando;
-5. `/torrents/list` responde com JSON;
-6. um magnet legal/de teste é aberto com `play_uri`;
-7. `/play` devolve redirect `/files/...`;
-8. o player do AddKo começa a reproduzir;
-9. `Player_IsPlaying`/`Player_WatchTimes` funcionam pela ponte Lua;
-10. seek funciona sobre o stream HTTP;
-11. `Plugin.stop()` encerra apenas o daemon que o Luelement iniciou.
+1. `.addko` instala e abre no AddKo;
+2. `Plugin.start()` abre a ponte RPC;
+3. o engine standalone ou companion inicia sem Kodi;
+4. `/torrents/list` responde;
+5. a UI do Luelement aparece;
+6. um magnet legal/de teste é adicionado;
+7. seleção de arquivo funciona quando necessária;
+8. `/play` devolve redirect `/files/...`;
+9. o player do AddKo reproduz;
+10. `Player_IsPlaying` e `Player_WatchTimes` funcionam pela ponte;
+11. seek funciona no stream HTTP;
+12. stop encerra somente o engine controlado pelo Luelement.
 
-Até esse teste acontecer no runtime real, o projeto deve continuar marcado como `0.2.0-dev`.
+Até esse teste acontecer em ambiente real, o projeto permanece `0.2.0-dev`.

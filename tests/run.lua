@@ -30,8 +30,7 @@ function _G.assert_true(value, message)
     end
 end
 
-function _G.assert_contains(text, expected, message)
-    text = tostring(text or "")
+function _G.assert_contains(text, expected, message)\n    text = tostring(text or "")
     if not text:find(expected, 1, true) then
         fail((message or "texto não contém valor")
             .. " | esperado=" .. tostring(expected)
@@ -48,6 +47,7 @@ require("tests.elementum_client_spec")
 require("tests.daemon_manager_spec")
 require("tests.companion_spec")
 require("tests.ui_spec")
+require("tests.app_spec")
 
 print(string.format("\n%d teste(s), %d falha(s)", total, failed))
 if failed > 0 then

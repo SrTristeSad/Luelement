@@ -1,0 +1,10 @@
+{
+  "id": "io.addko.luelement.client.demo",
+  "name": "Luelement Client Demo",
+  "version": "0.1.0",
+  "entry": "main.lua",
+  "permissions": [],
+  "dependencies": [
+    "io.addko.luelement"
+  ]
+}

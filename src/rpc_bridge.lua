@@ -41,24 +41,24 @@ function RpcBridge:dispatch(method, params)
         end,
         Reset = function()
             self.objects = {}
-            return true
+            return ""
         end,
         Refresh = function()
             self.host:ui_refresh()
-            return true
+            return ""
         end,
         Update = function(_, url)
             self.host:ui_update(url)
-            return true
+            return ""
         end,
         InstallAddon = function()
-            return false
+            return ""
         end,
         UpdateLocalAddons = function()
-            return false
+            return ""
         end,
         UpdateAddonRepos = function()
-            return false
+            return ""
         end,
         SystemInformation = function()
             local p = self.host:platform()
@@ -66,10 +66,10 @@ function RpcBridge:dispatch(method, params)
         end,
         Notify = function(_, header, message)
             self.host:notify(self:localize(header), self:localize(message))
-            return true
+            return ""
         end,
-        Keyboard = function(_, default, heading, hidden)
-            return self.host:keyboard(default or "", self:localize(heading), hidden == true) or ""
+        Keyboard = function(_, default_value, heading, hidden)
+            return self.host:keyboard(default_value or "", self:localize(heading), hidden == true) or ""
         end,
         Translate = function(_, text)
             return self:localize(text)
@@ -81,7 +81,8 @@ function RpcBridge:dispatch(method, params)
             self.host:dialog_ok(self:localize(title), self:localize(message))
             return 1
         end,
-        Dialog_Browse_Single = function(_, _, heading)
+        Dialog_Browse_Single = function(_, browse_type, heading)
+            local _ = browse_type
             return self.host:file_picker(self:localize(heading)) or ""
         end,
         Dialog_Confirm = function(_, title, message)
@@ -93,7 +94,8 @@ function RpcBridge:dispatch(method, params)
         Dialog_Select = function(_, title, items)
             return self.host:dialog_select(self:localize(title), items or {})
         end,
-        Dialog_Select_With_Options = function(_, title, items, _, preselect)
+        Dialog_Select_With_Options = function(_, title, items, autoclose, preselect)
+            local _ = autoclose
             return self.host:dialog_select(self:localize(title), items or {}, preselect)
         end,
         Dialog_Select_Large = function(_, title, subject, items)
@@ -104,7 +106,7 @@ function RpcBridge:dispatch(method, params)
         end,
         Dialog_Text = function(_, title, text)
             self.host:dialog_ok(self:localize(title), self:localize(text))
-            return true
+            return 1
         end,
         Window_Is_Loading = function()
             return 0
@@ -114,7 +116,7 @@ function RpcBridge:dispatch(method, params)
         end,
         OpenDirectory = function(_, path)
             self.host:ui_update(path)
-            return true
+            return ""
         end,
         Playlist_Left = function()
             return 0
@@ -123,19 +125,21 @@ function RpcBridge:dispatch(method, params)
             return 0
         end,
         Playlist_Add = function()
-            return true
+            return ""
         end,
         Playlist_Clear = function()
-            return true
+            return ""
         end,
         Player_Open = function(_, item)
-            return self.host:player_play(item)
+            self.host:player_play(item)
+            return ""
         end,
         Player_Open_With_Labels = function()
-            return true
+            return ""
         end,
         Player_Open_With_Timeout = function(_, item)
-            return self.host:player_play(item)
+            self.host:player_play(item)
+            return ""
         end,
         Player_GetPlayingFile = function()
             return self.host:player_file()
@@ -198,7 +202,7 @@ function RpcBridge:dispatch(method, params)
             return 0
         end,
         AddonSettings = function()
-            return false
+            return ""
         end,
         AddonSettingsOpened = function()
             return 0
@@ -223,7 +227,7 @@ function RpcBridge:dispatch(method, params)
         end,
         SetWindowProperty = function(_, key, value)
             self.properties[tostring(key)] = value or ""
-            return true
+            return ""
         end,
         GetCurrentView = function()
             return ""
@@ -233,13 +237,13 @@ function RpcBridge:dispatch(method, params)
         end,
         Log = function(_, message)
             self.host:log("debug", tostring(message or ""))
-            return true
+            return ""
         end,
         Dialog_CloseAll = function()
-            return true
+            return 1
         end,
         Dialog_CloseAllConfirms = function()
-            return true
+            return 1
         end,
         DialogInsert = function()
             return { type = "cancelled", path = "" }
@@ -254,12 +258,12 @@ function RpcBridge:dispatch(method, params)
         end,
         DialogProgress_Update = function(_, id, percent, ...)
             self.host:progress_update(self.objects[id], percent or 0, ...)
-            return true
+            return 0
         end,
         DialogProgress_Close = function(_, id)
             self.host:progress_close(self.objects[id])
             self.objects[id] = nil
-            return true
+            return 0
         end,
         DialogProgressBG_Create = function(_, ...)
             local id = self:next_id("progress-bg")
@@ -271,12 +275,12 @@ function RpcBridge:dispatch(method, params)
         end,
         DialogProgressBG_Update = function(_, id, percent, ...)
             self.host:progress_update(self.objects[id], percent or 0, ...)
-            return true
+            return 0
         end,
         DialogProgressBG_Close = function(_, id)
             self.host:progress_close(self.objects[id])
             self.objects[id] = nil
-            return true
+            return 0
         end,
         DialogProgressBG_Cleanup = function()
             for id, object in pairs(self.objects) do
@@ -285,7 +289,7 @@ function RpcBridge:dispatch(method, params)
                     self.objects[id] = nil
                 end
             end
-            return true
+            return 0
         end,
         OverlayStatus_Create = function()
             local id = self:next_id("overlay")
@@ -293,23 +297,23 @@ function RpcBridge:dispatch(method, params)
             return id
         end,
         OverlayStatus_Update = function()
-            return true
+            return 0
         end,
         OverlayStatus_Show = function()
-            return true
+            return 0
         end,
         OverlayStatus_Hide = function()
-            return true
+            return 0
         end,
         OverlayStatus_Close = function(_, id)
             self.objects[id] = nil
-            return true
+            return 0
         end,
         UpNext_Notify = function()
             return true
         end,
         ToggleWatched = function()
-            return true
+            return ""
         end,
         GetKodiLog = function()
             return ""

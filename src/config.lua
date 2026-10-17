@@ -1,7 +1,7 @@
 return {
     id = "io.addko.luelement",
     name = "Luelement",
-    version = "0.2.0-dev",
+    version = "0.2.1-dev",
 
     elementum = {
         scheme = "http",
@@ -19,8 +19,6 @@ return {
 
     companion = {
         auto_start = true,
-        start_uri = "luelement-engine://start",
-        stop_uri = "luelement-engine://stop",
     },
 
     daemon = {

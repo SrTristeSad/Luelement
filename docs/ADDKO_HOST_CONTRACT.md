@@ -1,8 +1,24 @@
-# Contrato mínimo do host AddKo
+# Contrato genérico do host AddKo usado pelo Luelement
 
-O Luelement **não emula Kodi**. Ele usa somente serviços genéricos que o runtime Lua do AddKo pode oferecer a qualquer plugin.
+O Luelement **não emula Kodi** e o AddKo **não possui API especial de torrent**. O plugin usa somente capacidades genéricas que também podem servir a outros mini-apps Lua.
 
-Toda dependência do host fica concentrada em `src/addko_host.lua`.
+Toda adaptação fica concentrada em `src/addko_host.lua`.
+
+## Estado atual no AddKo
+
+O `main` do AddKo já possui a base necessária para o Luelement:
+
+- HTTP/HTTPS com controle de redirects;
+- JSON;
+- paths privados do plugin;
+- filesystem sandboxed;
+- servidor TCP local por linhas;
+- temporização;
+- player HTTP;
+- callbacks genéricos de UI;
+- abertura segura de URI externo (`system.open_uri`) no Android.
+
+No Android, `process.spawn` permanece **desativado por design**. O Luelement usa o companion **Luelement Engine** para hospedar a biblioteca nativa Elementum. Em plataformas onde processos nativos forem suportados, o mesmo plugin pode usar `daemon_manager.lua`.
 
 ## Global
 
@@ -17,7 +33,7 @@ _G.addko
 ```lua
 local response = addko.http.request({
     method = "GET",
-    url = "http://127.0.0.1:65220/status",
+    url = "http://127.0.0.1:65220/torrents/list",
     headers = {},
     body = nil,
     timeout_seconds = 15,
@@ -25,30 +41,28 @@ local response = addko.http.request({
 })
 ```
 
-Retorno mínimo:
+Retorno:
 
 ```lua
 {
     status = 200,
-    body = "{}",
+    body = "[]",
     headers = {},
-    url = "http://127.0.0.1:65220/status",
+    url = "http://127.0.0.1:65220/torrents/list",
 }
 ```
 
-Para reprodução, `follow_redirects = false` precisa preservar respostas 30x e o cabeçalho `Location`. Isso é necessário porque `/play` do Elementum faz buffering e então redireciona para `/files/...`.
+Para reprodução, `follow_redirects = false` preserva a resposta 30x e o cabeçalho `Location`. `/play` faz o buffering e redireciona para `/files/...`.
 
-Para binários grandes é recomendado:
+Para downloads:
 
 ```lua
 addko.http.download({
-    url = "https://.../elementum.exe",
-    path = ".../elementum.exe",
+    url = "https://...",
+    path = "...",
     timeout_seconds = 180,
 })
 ```
-
-O fallback por `http.request(response_type="bytes")` existe, mas não é o caminho ideal para um executável de dezenas de MB.
 
 ## JSON
 
@@ -64,7 +78,7 @@ addko.platform.os
 addko.platform.arch
 ```
 
-Valores aceitos são normalizados pelo plugin. Exemplos:
+Exemplos aceitos pelo normalizador do Luelement:
 
 ```text
 windows / amd64
@@ -75,40 +89,44 @@ macos / x64
 
 ## Locale
 
-Opcional:
-
 ```lua
 addko.locale.language
 addko.locale.region
 addko.locale.second_language
 ```
 
-Sem isso o Luelement usa `en-US` como fallback.
+O plugin possui fallback quando algum desses valores não estiver disponível.
 
 ## Caminhos
 
 ```lua
-addko.paths.plugin("native/windows_x64/elementum.exe")
-addko.paths.data("elementum/0.1.114/profile")
+addko.paths.plugin("src/ui.lua")
+addko.paths.data("elementum/profile")
 ```
 
-`plugin()` aponta para arquivos empacotados e `data()` para a área persistente privada do plugin.
+`plugin()` aponta para o conteúdo instalado do `.addko`; `data()` aponta para a área persistente privada do plugin.
 
 ## Filesystem
-
-Aceito pelo adapter:
 
 ```lua
 addko.fs.exists(path)
 addko.fs.mkdirp(path)
 addko.fs.write_text(path, text)
 addko.fs.write_bytes(path, bytes)
-addko.fs.set_executable(path, true) -- não necessário no Windows
 ```
 
-Também existem aliases tolerados para algumas operações (`mkdirs`, `create_directories`, `write`, `chmod`).
+Em hosts que permitem executáveis graváveis também podem existir:
+
+```lua
+addko.fs.set_executable(path, true)
+addko.fs.chmod(path, "755")
+```
+
+No Android do AddKo essas operações de executável são deliberadamente indisponíveis.
 
 ## Processo nativo
+
+Contrato usado pelo launcher standalone quando o host oferecer a capacidade:
 
 ```lua
 local handle = addko.process.spawn({
@@ -122,13 +140,46 @@ local handle = addko.process.spawn({
 addko.process.stop(handle)
 ```
 
-Isso é uma API genérica para processos nativos. O núcleo do AddKo não precisa conhecer Elementum, torrent ou libtorrent.
+No Android atual:
+
+```text
+capabilities.process = false
+```
+
+Por isso o plugin não tenta baixar e executar um ELF no diretório de dados.
+
+## Abertura de URI externo
+
+O AddKo expõe no Android:
+
+```lua
+addko.system.open_uri("luelement-engine://start")
+```
+
+É uma capacidade genérica. O core não conhece Luelement nem Elementum.
+
+O host rejeita esquemas locais/perigosos como:
+
+```text
+file:
+content:
+data:
+javascript:
+intent:
+```
+
+O Luelement usa:
+
+```text
+luelement-engine://start
+luelement-engine://stop
+```
+
+para controlar o companion Android.
 
 ## TCP local
 
-O daemon Elementum usa JSON-RPC 2.0 sobre TCP para conversar com a antiga camada Python. O Luelement substitui essa camada com Lua em `127.0.0.1:65221`.
-
-Contrato esperado:
+A ponte JSON-RPC Lua escuta em `127.0.0.1:65221`:
 
 ```lua
 local server = addko.net.tcp.listen({
@@ -141,15 +192,13 @@ local server = addko.net.tcp.listen({
 })
 ```
 
-Também pode ser exposto como `listen_lines`.
-
-Cada requisição e resposta JSON-RPC é um documento JSON terminado por quebra de linha. O valor retornado por `on_message` deve ser enviado ao mesmo cliente como uma linha completa.
-
-Para fechar:
+Cada mensagem JSON-RPC é uma linha. Para fechar:
 
 ```lua
 addko.net.tcp.close(server)
 ```
+
+O host restringe o servidor TCP do plugin ao loopback.
 
 ## Temporização
 
@@ -157,11 +206,13 @@ addko.net.tcp.close(server)
 addko.sleep(250)
 ```
 
-O plugin usa isso para aguardar o daemon subir/encerrar sem busy-wait.
+Usado para polling de inicialização/encerramento sem busy-wait.
 
 ## UI
 
-Estas funções são opcionais; o adapter possui fallbacks simples quando possível:
+O AddKo possui uma UI declarativa para páginas do mini-app e também callbacks genéricos usados pelo RPC do Elementum.
+
+Callbacks relevantes:
 
 ```lua
 addko.ui.refresh()
@@ -179,28 +230,83 @@ addko.ui.progress_is_cancelled(handle)
 addko.ui.progress_close(handle)
 ```
 
-Essas funções atendem aos callbacks que o daemon usa durante seleção de arquivo, buffering e notificações.
+`input`, `alert`, `confirm` e `select` já são conectados a diálogos Flutter reais. O file picker genérico ainda retorna cancelamento nesta etapa; progresso já possui contrato funcional básico, mas ainda pode ganhar uma apresentação visual mais sofisticada.
+
+O Luelement exige os callbacks de diálogo no preflight porque o Elementum pode pedir seleção de arquivo durante `/play`.
+
+## UI declarativa
+
+`Plugin.start()` e ações do Luelement agora retornam documentos do próprio AddKo, por exemplo:
+
+```lua
+return {
+    type = "page",
+    title = "Luelement",
+    body = {
+        type = "column",
+        children = {
+            {
+                type = "button",
+                label = "Torrents",
+                action = "route",
+                args = { "torrents" },
+            },
+        },
+    },
+}
+```
+
+O AddKo atual suporta componentes como texto, botões, cards, row/column, grid/list, imagens e campos de formulário.
 
 ## Player
-
-Para reprodução real:
 
 ```lua
 addko.player.play(url)
 addko.player.current_url()
 addko.player.is_playing()
 addko.player.is_paused()
-addko.player.times()       -- { position=..., duration=... }
+addko.player.times()
 addko.player.seek(seconds)
 addko.player.subtitles()
 addko.player.set_subtitles(urls)
 ```
 
-A URL entregue ao player é servida pelo próprio Elementum em `http://127.0.0.1:65220/files/...`.
+A URL entregue ao player é normalmente:
+
+```text
+http://127.0.0.1:65220/files/...
+```
+
+Ao iniciar mídia por um plugin, o AddKo abre uma superfície de reprodução genérica em tela própria. O Android permite cleartext somente para `localhost` e `127.0.0.1`, portanto não foi necessário liberar HTTP globalmente.
+
+## Capacidades verificadas pelo Luelement
+
+No modo externo/companion:
+
+```text
+http
+tcp_server
+player
+sleep
+ui
+```
+
+No launcher standalone, adicionalmente:
+
+```text
+filesystem
+process
+```
+
+No Android, o companion também verifica:
+
+```text
+open_uri
+```
 
 ## O que NÃO existe
 
-Não existe contrato AddKo como:
+Não existe:
 
 ```text
 addko.torrent
@@ -209,4 +315,4 @@ addko.dht
 addko.magnet
 ```
 
-Essas responsabilidades ficam inteiramente dentro do Luelement/Elementum. O runtime fornece apenas capacidades genéricas de app/plugin.
+Torrent, DHT, magnet, peers e buffering continuam inteiramente dentro do Elementum/Luelement. O AddKo fornece somente capacidades genéricas de uma plataforma de mini-apps.

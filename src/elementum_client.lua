@@ -7,6 +7,17 @@ local function response_status(response)
     return tonumber(response.status or response.status_code or response.code or 0) or 0
 end
 
+local function response_header(response, name)
+    local headers = response.headers
+    if type(headers) ~= "table" then
+        return nil
+    end
+
+    return headers[name]
+        or headers[string.lower(name)]
+        or headers[string.upper(name)]
+end
+
 function Client.new(host, config)
     local endpoint = config.elementum
     local base_url = string.format(
@@ -37,6 +48,7 @@ function Client:request(method, path, options)
         body = options.body,
         timeout_seconds = options.timeout_seconds
             or self.config.elementum.request_timeout_seconds,
+        follow_redirects = options.follow_redirects,
     })
 
     local status = response_status(response)
@@ -126,6 +138,91 @@ end
 function Client:movies_top(page)
     return self:request("GET", "/movies/top", {
         query = { page = page or 1 },
+    })
+end
+
+function Client:resolve_stream(options)
+    options = options or {}
+
+    local query = {
+        uri = options.uri,
+        resume = options.resume,
+        index = options.index,
+        oindex = options.oindex,
+        doresume = options.doresume == true and "true" or "false",
+        file_match = options.file_match,
+        type = options.content_type,
+        tmdb = options.tmdb,
+        show = options.show,
+        season = options.season,
+        episode = options.episode,
+    }
+
+    assert(
+        (type(query.uri) == "string" and query.uri ~= "")
+            or (type(query.resume) == "string" and query.resume ~= ""),
+        "resolve_stream exige uri ou resume"
+    )
+
+    local request_url = self:url("/play", query)
+    local response = self.host:http({
+        method = "GET",
+        url = request_url,
+        headers = {
+            ["User-Agent"] = "Luelement",
+        },
+        timeout_seconds = self.config.elementum.playback_timeout_seconds or 120,
+        follow_redirects = false,
+    })
+
+    local status = response_status(response)
+    if status == 301 or status == 302 or status == 303 or status == 307 or status == 308 then
+        local location = response_header(response, "Location")
+        if not location or location == "" then
+            error("Elementum respondeu redirecionamento sem cabeçalho Location")
+        end
+
+        if location:sub(1, 1) == "/" then
+            location = self.base_url .. location
+        end
+
+        return location, response
+    end
+
+    -- Alguns adapters HTTP podem seguir o redirect mesmo quando solicitado o
+    -- contrário. Aceitamos a URL final se o runtime a informar sem baixar o
+    -- corpo inteiro do vídeo para Lua.
+    if status >= 200 and status < 300 then
+        local final_url = response.final_url or response.url
+        if type(final_url) == "string"
+            and final_url ~= ""
+            and final_url ~= request_url then
+            return final_url, response
+        end
+    end
+
+    error(string.format(
+        "não foi possível obter URL de reprodução: HTTP %d (%s)",
+        status,
+        tostring(response.body or "")
+    ))
+end
+
+function Client:stream_uri(uri, index)
+    assert(type(uri) == "string" and uri ~= "", "uri é obrigatória")
+    return self:resolve_stream({
+        uri = uri,
+        index = index,
+        doresume = false,
+    })
+end
+
+function Client:stream_torrent(id, index)
+    assert(type(id) == "string" and id ~= "", "id do torrent é obrigatório")
+    return self:resolve_stream({
+        resume = id,
+        index = index,
+        doresume = false,
     })
 end
 

@@ -1,5 +1,8 @@
 # Luelement
 
+> **Distribuição do produto:** Luelement é um plugin `.addko`, não um APK independente. A inicialização automática do antigo companion Android foi desativada. O pacote Lua instala no AddKo, mas **o motor nativo ainda não roda no AddKo Android atual**, que precisa de suporte genérico a módulos nativos de plugins. Não instale APK auxiliar como requisito do Luelement; o código `android-engine/` é um experimento legado, não a solução de distribuição pretendida.
+
+
 Luelement é um plugin Lua experimental para o AddKo que usa o **Elementum** como motor nativo de torrent/streaming, sem transformar o AddKo em Kodi e sem portar o ecossistema Python do Kodi.
 
 ```text

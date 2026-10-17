@@ -1,0 +1,27 @@
+name: Luelement Lua package
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4
+      - name: Test Lua module
+        run: lua5.4 tests/run.lua
+      - name: Create addon .addko
+        shell: pwsh
+        run: ./tools/build_addko.ps1
+      - name: Upload installable addon
+        uses: actions/upload-artifact@v4
+        with:
+          name: Luelement-Lua-Addon
+          path: dist/Luelement-0.2.0-dev.addko
+          retention-days: 7

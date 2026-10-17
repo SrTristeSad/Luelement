@@ -1,0 +1,16 @@
+# Build outputs
+dist/
+android-engine/.gradle/
+android-engine/app/build/
+
+# Downloaded build tools
+.tools/
+
+# Native libraries downloaded by Gradle
+android-engine/app/src/main/jniLibs/
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+Thumbs.db

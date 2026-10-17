@@ -73,8 +73,19 @@ function Client:request(method, path, options)
     return self.host:decode_json(body), response
 end
 
+-- /status do Elementum é uma ação de UI: ele abre um diálogo pela ponte RPC.
+-- Para detectar se o daemon está vivo usamos /torrents/list, que é silencioso
+-- em server mode e devolve JSON mesmo quando não há torrents ativos.
+function Client:health()
+    local torrents = self:torrents()
+    return {
+        running = true,
+        torrent_count = type(torrents) == "table" and #torrents or 0,
+    }
+end
+
 function Client:status()
-    return self:request("GET", "/status")
+    return self:health()
 end
 
 function Client:torrents()

@@ -30,7 +30,8 @@ function _G.assert_true(value, message)
     end
 end
 
-function _G.assert_contains(text, expected, message)\n    text = tostring(text or "")
+function _G.assert_contains(text, expected, message)
+    text = tostring(text or "")
     if not text:find(expected, 1, true) then
         fail((message or "texto não contém valor")
             .. " | esperado=" .. tostring(expected)

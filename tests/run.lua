@@ -43,6 +43,7 @@ require("tests.url_spec")
 require("tests.platform_spec")
 require("tests.preflight_spec")
 require("tests.rpc_bridge_spec")
+require("tests.standalone_config_spec")
 
 print(string.format("\n%d teste(s), %d falha(s)", total, failed))
 if failed > 0 then

@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     id 'com.android.application'
 }
@@ -47,31 +49,89 @@ android {
 final String elementumCommit = '2bfca0cd91cdf31e94eff121f997b78ff022224c'
 final File arm64Dir = file('src/main/jniLibs/arm64-v8a')
 
-final Map<String, String> elementumFiles = [
-    'libelementum.so': "https://raw.githubusercontent.com/elgatito/elementum-binaries/${elementumCommit}/android_arm64/elementum.so",
-    'libc++_shared.so': "https://raw.githubusercontent.com/elgatito/elementum-binaries/${elementumCommit}/android_arm64/libc++_shared.so",
+final Map<String, Map<String, Object>> elementumFiles = [
+    'libelementum.so': [
+        url: "https://raw.githubusercontent.com/elgatito/elementum-binaries/${elementumCommit}/android_arm64/elementum.so",
+        size: 28719993L,
+        gitBlobSha1: '05ed9b64e4ad3bf882cea73db834316fc8b897d0',
+    ],
+    'libc++_shared.so': [
+        url: "https://raw.githubusercontent.com/elgatito/elementum-binaries/${elementumCommit}/android_arm64/libc++_shared.so",
+        size: 5973872L,
+        gitBlobSha1: '8d26b5f72fbfb5c1f16b068705361e818863e265',
+    ],
 ]
+
+String gitBlobSha1(File value) {
+    final MessageDigest digest = MessageDigest.getInstance('SHA-1')
+    final byte[] header = "blob ${value.length()}\u0000".getBytes('UTF-8')
+    digest.update(header)
+
+    value.withInputStream { input ->
+        final byte[] buffer = new byte[64 * 1024]
+        while (true) {
+            final int read = input.read(buffer)
+            if (read < 0) break
+            digest.update(buffer, 0, read)
+        }
+    }
+
+    return digest.digest().collect { byte b ->
+        String.format('%02x', b & 0xff)
+    }.join()
+}
+
+boolean validElementumFile(File value, Map<String, Object> expected) {
+    if (!value.exists()) return false
+    if (value.length() != (expected.size as Long)) return false
+    return gitBlobSha1(value) == expected.gitBlobSha1
+}
 
 tasks.register('prepareElementumNative') {
     outputs.files(elementumFiles.keySet().collect { new File(arm64Dir, it) })
 
     doLast {
         arm64Dir.mkdirs()
-        elementumFiles.each { String name, String url ->
+        elementumFiles.each { String name, Map<String, Object> expected ->
             final File destination = new File(arm64Dir, name)
-            if (destination.exists() && destination.length() > 1024 * 1024) {
+            if (validElementumFile(destination, expected)) {
+                logger.lifecycle("Verified cached ${name} (${expected.gitBlobSha1})")
                 return
             }
 
-            logger.lifecycle("Downloading ${name} from pinned Elementum commit ${elementumCommit}")
-            new URL(url).withInputStream { input ->
-                destination.withOutputStream { output ->
-                    output << input
-                }
+            if (destination.exists()) {
+                destination.delete()
             }
 
-            if (!destination.exists() || destination.length() < 1024 * 1024) {
-                throw new GradleException("Invalid native download: ${destination}")
+            final File temporary = new File(arm64Dir, "${name}.download")
+            if (temporary.exists()) temporary.delete()
+
+            logger.lifecycle("Downloading ${name} from pinned Elementum commit ${elementumCommit}")
+            try {
+                new URL(expected.url as String).withInputStream { input ->
+                    temporary.withOutputStream { output ->
+                        output << input
+                    }
+                }
+
+                if (!validElementumFile(temporary, expected)) {
+                    throw new GradleException(
+                        "Native verification failed for ${name}: " +
+                        "size=${temporary.length()}, gitBlobSha1=${gitBlobSha1(temporary)}"
+                    )
+                }
+
+                if (!temporary.renameTo(destination)) {
+                    destination.bytes = temporary.bytes
+                    temporary.delete()
+                }
+
+                if (!validElementumFile(destination, expected)) {
+                    throw new GradleException("Native verification failed after move: ${destination}")
+                }
+                logger.lifecycle("Verified ${name} (${expected.gitBlobSha1})")
+            } finally {
+                if (temporary.exists()) temporary.delete()
             }
         }
     }

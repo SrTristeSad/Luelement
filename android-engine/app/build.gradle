@@ -1,0 +1,82 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'io.addko.luelement.engine'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'io.addko.luelement.engine'
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0-dev'
+
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags ''
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+}
+
+final String elementumCommit = '2bfca0cd91cdf31e94eff121f997b78ff022224c'
+final File arm64Dir = file('src/main/jniLibs/arm64-v8a')
+
+final Map<String, String> elementumFiles = [
+    'libelementum.so': "https://raw.githubusercontent.com/elgatito/elementum-binaries/${elementumCommit}/android_arm64/elementum.so",
+    'libc++_shared.so': "https://raw.githubusercontent.com/elgatito/elementum-binaries/${elementumCommit}/android_arm64/libc++_shared.so",
+]
+
+tasks.register('prepareElementumNative') {
+    outputs.files(elementumFiles.keySet().collect { new File(arm64Dir, it) })
+
+    doLast {
+        arm64Dir.mkdirs()
+        elementumFiles.each { String name, String url ->
+            final File destination = new File(arm64Dir, name)
+            if (destination.exists() && destination.length() > 1024 * 1024) {
+                return
+            }
+
+            logger.lifecycle("Downloading ${name} from pinned Elementum commit ${elementumCommit}")
+            new URL(url).withInputStream { input ->
+                destination.withOutputStream { output ->
+                    output << input
+                }
+            }
+
+            if (!destination.exists() || destination.length() < 1024 * 1024) {
+                throw new GradleException("Invalid native download: ${destination}")
+            }
+        }
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn tasks.named('prepareElementumNative')
+}

@@ -18,6 +18,7 @@ O núcleo do AddKo continua genérico. Torrent, DHT, magnet, peers, buffering e 
 
 Já implementado no `main`:
 
+- manifesto `manifest.json` compatível com o formato `.addko` atual;
 - cliente Lua da API HTTP do Elementum;
 - inicialização standalone do daemon com `-configPath`;
 - geração do `ConfigBundle` sem depender das settings do Kodi;
@@ -32,8 +33,9 @@ Já implementado no `main`:
 - entrega da URL resultante ao player do AddKo;
 - health-check silencioso via `/torrents/list`;
 - preflight do runtime AddKo;
-- testes Lua sem dependências externas para URL, plataforma, preflight, RPC e configuração standalone;
-- diagnóstico do daemon e da plataforma.
+- testes Lua sem dependências externas para URL, plataforma, preflight, RPC, configuração standalone, cliente HTTP e ciclo do daemon;
+- diagnóstico do daemon e da plataforma;
+- gerador Windows de pacote instalável `.addko`.
 
 ### Ainda não validado de ponta a ponta
 
@@ -80,8 +82,9 @@ AddKo player.play(url)
 
 ```text
 Luelement/
+├── BUILD_ADDKO.bat
+├── manifest.json
 ├── main.lua
-├── plugin.json
 ├── src/
 │   ├── addko_host.lua
 │   ├── app.lua
@@ -95,11 +98,15 @@ Luelement/
 │   └── url.lua
 ├── tests/
 │   ├── run.lua
+│   ├── daemon_manager_spec.lua
+│   ├── elementum_client_spec.lua
 │   ├── platform_spec.lua
 │   ├── preflight_spec.lua
 │   ├── rpc_bridge_spec.lua
 │   ├── standalone_config_spec.lua
 │   └── url_spec.lua
+├── tools/
+│   └── build_addko.ps1
 ├── native/
 │   └── README.md
 └── docs/
@@ -107,6 +114,22 @@ Luelement/
     ├── ENGINE_INTEGRATION.md
     └── SMOKE_TEST_WINDOWS.md
 ```
+
+## Gerar pacote `.addko`
+
+No Windows, execute:
+
+```bat
+BUILD_ADDKO.bat
+```
+
+O script cria:
+
+```text
+dist/Luelement-0.2.0-dev.addko
+```
+
+O pacote contém somente o necessário em runtime (`manifest.json`, `main.lua` e `src/`). O executável do Elementum não precisa ficar dentro do `.addko`: ele pode ser baixado e armazenado pelo Luelement na primeira execução. O script também rejeita o pacote se ultrapassar o limite atual de 16 MiB do AddKo.
 
 ## Binário Elementum
 

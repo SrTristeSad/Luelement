@@ -205,6 +205,84 @@ function App:route(name, params)
     return result
 end
 
+-- Public service contract used by other AddKo plugins that explicitly declare
+-- io.addko.luelement in their manifest dependencies.
+function App:service(name, params)
+    params = params or {}
+
+    if name == "health" then
+        local ready, status = self.daemon:is_ready()
+        return {
+            ready = ready,
+            status = status,
+            engine = self.last_engine,
+            companion = self.companion:diagnostics(),
+        }
+    elseif name == "torrents" then
+        return self.elementum:torrents()
+    elseif name == "add" then
+        local uri = tostring(params.uri or "")
+        if uri == "" then
+            error("service add exige params.uri")
+        end
+        self.elementum:add_torrent(uri, params.all_files == true)
+        return self.elementum:torrents()
+    elseif name == "stream" then
+        if params.id and tostring(params.id) ~= "" then
+            return self.elementum:stream_torrent(params.id, params.index)
+        end
+        local uri = tostring(params.uri or "")
+        if uri == "" then
+            error("service stream exige params.id ou params.uri")
+        end
+        return self.elementum:stream_uri(uri, params.index)
+    elseif name == "play" then
+        local stream_url
+        if params.id and tostring(params.id) ~= "" then
+            stream_url = self.elementum:stream_torrent(params.id, params.index)
+        else
+            local uri = tostring(params.uri or "")
+            if uri == "" then
+                error("service play exige params.id ou params.uri")
+            end
+            stream_url = self.elementum:stream_uri(uri, params.index)
+        end
+
+        local started = self.host:player_play(stream_url)
+        if not started then
+            error("o player do AddKo recusou a reprodução")
+        end
+        return {
+            started = true,
+            url = stream_url,
+        }
+    elseif name == "pause" then
+        self.elementum:pause_torrent(params.id)
+        return true
+    elseif name == "resume" then
+        self.elementum:resume_torrent(params.id)
+        return true
+    elseif name == "recheck" then
+        self.elementum:recheck_torrent(params.id)
+        return true
+    elseif name == "remove" then
+        self.elementum:remove_torrent(
+            params.id,
+            params.delete_torrent == true,
+            params.delete_files == true
+        )
+        return true
+    elseif name == "session_pause" then
+        self.elementum:pause_session()
+        return true
+    elseif name == "session_resume" then
+        self.elementum:resume_session()
+        return true
+    end
+
+    error("método de serviço Luelement desconhecido: " .. tostring(name))
+end
+
 function App:stop()
     local daemon_success, daemon_result = pcall(function()
         return self.daemon:stop()

@@ -3,17 +3,17 @@
 > **Distribuição:** o Luelement continua sendo um plugin Lua `.addko`. O AddKo Android inclui opcionalmente o módulo aprovado Elementum **dentro do próprio APK** na build completa. O addon não executa `.so` externo, e não requer um APK auxiliar. A integração nativa precisa ser validada em aparelho físico.
 
 
-Luelement é um plugin Lua experimental para o AddKo que usa o **Elementum** como motor nativo de torrent/streaming, sem transformar o AddKo em Kodi e sem portar o ecossistema Python do Kodi.
+Luelement é um **plugin de serviço (ferramenta para outros addons)**, não um aplicativo de vídeos. Addons consumidores o declaram como dependência e chamam `addko.plugins.call("io.addko.luelement", ...)`. O usuário interage com a interface criada pelo addon consumidor. O serviço usa o **Elementum** como motor nativo de torrent/streaming, sem transformar o AddKo em Kodi nem portar o ecossistema Python do Kodi.
 
 ```text
-AddKo
-  ↓
-Luelement (Lua)
-  ├─ UI declarativa do AddKo
-  ├─ HTTP → Elementum :65220
-  └─ RPC Lua :65221 ← Elementum
-                         ↓
-                  libtorrent / BitTorrent
+AddKo → addon de vídeos (interface escolhida pelo autor)
+         │ addko.plugins.call("io.addko.luelement", "stream"/"play", ...)
+         ▼
+     Luelement (serviço Lua, sem card na home)
+         ├─ HTTP → Elementum :65220
+         └─ RPC Lua :65221 ← Elementum
+                                  ▼
+                         libtorrent / BitTorrent
 ```
 
 No Android, o motor nativo aprovado já vem no APK do AddKo (build completa):
@@ -26,14 +26,15 @@ AddKo APK (motor Elementum aprovado e assinado)
 
 O núcleo do AddKo continua genérico. Não existe `addko.torrent` nem `addko.elementum`; existe a API `addko.engines` com permissão genérica `native_engine` e IDs de módulos já incluídos no APK.
 
-## Estado atual — 0.2.0-dev
+## Estado atual — 0.2.1-dev
 
 Já implementado no `main`:
 
 - `manifest.json` compatível com o formato `.addko` atual;
-- frontend Lua modular usando o `require` seguro do AddKo;
-- primeira UI real do Luelement usando o renderer declarativo do AddKo;
-- tela inicial com estado do motor;
+- serviço Lua modular usando o `require` seguro do AddKo;
+- tipo de manifesto `service`, oculto da tela inicial e acessível em Gerenciar addons;
+- inicialização sob demanda na primeira chamada de um addon consumidor;
+- rotas internas legadas de diagnóstico mantidas para testes, sem card de aplicativo;
 - tela de torrents com progresso, status, peers, seeds e velocidades;
 - formulário para adicionar magnet/URL de torrent;
 - ações de pausa, retomada, recheck, remoção e reprodução;
@@ -65,9 +66,11 @@ O próximo marco real é um teste em Windows/aparelho Android provando:
 ```text
 AddKo
   ↓
-instala Luelement.addko
+instala Luelement.addko (serviço)
   ↓
-abre Luelement
+abre um addon de vídeos que depende de Luelement
+  ↓
+o AddKo inicia Luelement automaticamente ao receber a primeira chamada
   ↓
 engine sobe
   ↓
@@ -136,7 +139,7 @@ BUILD_ADDKO.bat
 Resultado:
 
 ```text
-dist/Luelement-0.2.0-dev.addko
+dist/Luelement-0.2.1-dev.addko
 ```
 
 O pacote contém somente:

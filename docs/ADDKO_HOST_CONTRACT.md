@@ -1,11 +1,12 @@
 # Contrato nativo genérico do AddKo para Luelement
 
-O Luelement utiliza o runtime Lua, a UI, HTTP, JSON, armazenamento, TCP local e player do AddKo, além da API genérica de motores pré-aprovados.
+O Luelement é uma ferramenta de serviço, chamada por outro addon via `addko.plugins.call`; não possui experiência visual obrigatória. Utiliza o runtime Lua, HTTP, JSON, armazenamento, TCP local e player do AddKo, além da API genérica de motores pré-aprovados.
 
 O manifesto declara:
 
 ```json
 {
+  "type": "service",
   "permissions": ["network", "storage", "media", "background", "native_engine"],
   "native_engines": ["elementum"]
 }

@@ -102,11 +102,17 @@ function App:start()
             self.rpc:stop()
         end)
         self.host:log("error", "Falha ao iniciar Elementum: " .. tostring(engine))
-        return Ui.error(engine)
+        -- A service has no launcher page for displaying errors.
+        -- Propagate startup failures to the calling addon.
+        error("Luelement não iniciou: " .. tostring(engine))
     end
 
     self.last_engine = engine
-    return self:home()
+    return {
+        type = "service",
+        id = self.config.id,
+        ready = true,
+    }
 end
 
 function App:route(name, params)

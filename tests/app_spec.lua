@@ -176,17 +176,29 @@ local function make_host()
     return host, state
 end
 
-test("app inicia módulo nativo integrado e retorna página real", function()
+test("Luelement inicia sob demanda e não entrega página de aplicativo", function()
     local host, state = make_host()
     local app = App.new(host)
 
     local document = app:start()
 
-    assert_equal(document.type, "page")
-    assert_equal(document.title, "Luelement")
+    assert_equal(document.type, "service")
+    assert_true(document.ready)
+    assert_equal(document.id, "io.addko.luelement")
     assert_true(state.rpc_started)
     assert_equal(state.opened[1], "engine-start")
     assert_true(state.engine_ready)
+end)
+
+
+test("erro de inicialização do serviço é entregue ao addon consumidor", function()
+    local host, state = make_host()
+    host.api.engines.available = function() return false end
+    local app = App.new(host)
+    local ok, err = pcall(function() return app:start() end)
+    assert_true(not ok)
+    assert_contains(err, "Luelement não iniciou")
+    assert_true(not state.engine_ready)
 end)
 
 test("app adiciona magnet e retorna lista de torrents", function()

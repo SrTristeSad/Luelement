@@ -1,8 +1,9 @@
 {
   "id": "io.addko.luelement",
   "name": "Luelement",
-  "version": "0.2.0-dev",
+  "version": "0.2.1-dev",
   "entry": "main.lua",
+  "type": "service",
   "permissions": [
     "network",
     "storage",

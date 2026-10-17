@@ -40,12 +40,14 @@ gera elementum-config.json
         ↓
 inicia daemon com configPath + remoteHost
         ↓
-GET http://127.0.0.1:65220/status
+GET http://127.0.0.1:65220/torrents/list
         ↓
-sucesso
+HTTP 200 + JSON
 ```
 
 O resultado deve indicar `engine.owned=true` quando a instância foi criada pelo próprio Luelement.
+
+Não use `/status` como probe: no Elementum essa rota abre um diálogo de informações pela ponte RPC.
 
 ## 3. Diagnóstico
 
@@ -59,7 +61,7 @@ Verificar:
 ready = true
 rpc_started = true
 platform.target = windows_x64
-paths.executable termina em elemento/0.1.114/windows_x64/elementum.exe
+paths.executable termina em elementum/0.1.114/windows_x64/elementum.exe
 ```
 
 Consultar o `elementum.log` se `ready=false`.
@@ -134,7 +136,7 @@ Se o Luelement apenas se conectou a uma instância preexistente, não deve matar
 O smoke test passa somente se:
 
 - daemon inicia sem Kodi instalado/rodando;
-- `/status` funciona;
+- `/torrents/list` funciona como probe silencioso;
 - RPC 65221 recebe chamadas do daemon;
 - um magnet legal gera URL `/files/...`;
 - vídeo começa no player do AddKo;

@@ -247,6 +247,8 @@ function App:service(name, params)
             engine = self.last_engine,
             companion = self.companion:diagnostics(),
         }
+    elseif name == "stream_stats" then
+        return self.host:media_stream_stats(self.active_media_stream_id)
     elseif name == "torrents" then
         return self.elementum:torrents()
     elseif name == "add" then

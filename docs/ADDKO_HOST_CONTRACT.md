@@ -23,6 +23,14 @@ local stopped = addko.engines.stop("elementum")
 
 O aplicativo nunca carrega `.so` fornecido pelo `.addko`. Um serviço Android não exportado executa somente o módulo incluído previamente no APK assinado. Chamadas de rede e player continuam usando APIs genéricas.
 
-HTTP do engine: `127.0.0.1:65220`. RPC Lua: `127.0.0.1:65221`. A reprodução entrega a URL `/files/...` ao `addko.player.play`.
+HTTP do engine: `127.0.0.1:65220`. RPC Lua: `127.0.0.1:65221`. Na versão nova do AddKo, o Luelement registra a URL de `/files/...`
+via `addko.stream.register({url=...})`, entrega ao player a URL local
+`/media/<token>` e libera o registro ao substituir a fonte ou ao
+encerrar o serviço. O núcleo faz o transporte HTTP Range diretamente
+para o player, sem transferir bytes para Lua.
+
+Se o AddKo instalado ainda não oferece `media_stream_proxy`,
+o Luelement preserva a reprodução anterior usando a URL direta
+`/files/...`. Essa compatibilidade não é prova de reprodução real.
 
 A primeira instalação ainda precisa de smoke test físico para validar FGS, JNI, libtorrent, HTTP, RPC e player.

@@ -48,6 +48,7 @@ require("tests.elementum_client_spec")
 require("tests.daemon_manager_spec")
 require("tests.companion_spec")
 require("tests.ui_spec")
+require("tests.media_stream_host_spec")
 require("tests.app_spec")
 
 print(string.format("\n%d teste(s), %d falha(s)", total, failed))

@@ -44,6 +44,8 @@ Já implementado no `main`:
 - ponte JSON-RPC 2.0 em Lua na porta `65221`;
 - confirmação, seleção, teclado e alertas encaminhados para UI Flutter genérica do AddKo;
 - player HTTP do AddKo com tela própria de reprodução;
+- integração opcional com `addko.stream.register` do núcleo AddKo para transportar `/files/...` via HTTP Range e URL local temporária;
+- revogação da fonte de mídia ao trocar de vídeo ou encerrar o serviço; fallback à URL direta em núcleos antigos;
 - launcher standalone do daemon para hosts que permitam processos nativos;
 - geração de `ConfigBundle` standalone sem depender das settings do Kodi;
 - detecção de plataforma/arquitetura;

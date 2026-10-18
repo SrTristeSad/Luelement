@@ -362,6 +362,34 @@ function Host:progress_close(handle)
     end
 end
 
+-- Dart streams the source; Lua does not transfer media bytes.
+-- Old hosts may still play the Elementum URL directly.
+function Host:prepare_media_stream(url)
+    local stream = self.api.stream
+    local capabilities = self.api.capabilities or {}
+    if capabilities.media_stream_proxy ~= true
+        or type(stream) ~= "table"
+        or type(stream.register) ~= "function" then
+        return url, nil
+    end
+    local registered = stream.register({url = url})
+    if type(registered) ~= "table"
+        or type(registered.url) ~= "string"
+        or type(registered.id) ~= "string" then
+        error("O núcleo AddKo não registrou a fonte de mídia corretamente.")
+    end
+    return registered.url, registered.id
+end
+
+function Host:release_media_stream(id)
+    if not id then return false end
+    local stream = self.api.stream
+    if type(stream) ~= "table" or type(stream.revoke) ~= "function" then
+        return false
+    end
+    return stream.revoke(id)
+end
+
 function Host:player()
     return self.api.player
 end

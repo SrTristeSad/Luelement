@@ -34,7 +34,12 @@ as bibliotecas nativas usadas pelo projeto.
 5. **Resolução da mídia.** `GET /play?uri=...` deve produzir HTTP 302 com
    `Location: http://127.0.0.1:65220/files/...`. O cliente Lua consome
    apenas os headers, não o corpo do vídeo.
-6. **Player.** A tela Flutter deve abrir com indicação de preparação da mídia,
+6. **Streaming do núcleo.** Com AddKo recente, o Luelement deve registrar
+   `http://127.0.0.1:65220/files/...` em `addko.stream.register` e
+   receber `http://127.0.0.1:<porta>/media/<token>`. Confirmar
+   requisições HTTP Range ao motor. Em hosts antigos sem a capacidade,
+   ele poderá usar a URL original como compatibilidade.
+7. **Player.** A tela Flutter deve abrir com indicação de preparação da mídia,
    iniciar a reprodução quando houver dados suficientes e permitir
    pausa e seek. Em caso de falha na inicialização, deve exibir erro visível.
 
@@ -47,7 +52,8 @@ as bibliotecas nativas usadas pelo projeto.
 | Motor Android | HTTP 200 em /torrents/list | Inspecionar logs do NativeEngineService e Elementum |
 | Solicitar torrent | Metadados e peers | Confirmar seeds/tracker e licença do conteúdo |
 | GET /play | 302 e header Location | Conferir RPC e seleção do arquivo |
-| Player | Vídeo, pausa e seek | Conferir codec, URL /files, HTTP Range e log Flutter |
+| Ponte do AddKo | URL /media com requisições Range para /files | Conferir permissão network, token e logs HTTP |
+| Player | Vídeo, pausa e seek | Conferir codec, URL /media, HTTP Range e log Flutter |
 
 ## Critério de aceitação
 

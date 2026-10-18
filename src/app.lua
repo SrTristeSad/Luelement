@@ -278,7 +278,7 @@ function App:service(name, params)
         end
 
         local playable_url = self:publish_media_stream(stream_url)
-            local started = self.host:player_play(playable_url)
+        local started = self.host:player_play(playable_url)
         if not started then
             error("o player do AddKo recusou a reprodução")
         end

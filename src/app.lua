@@ -20,6 +20,7 @@ function App.new(host)
         host = host,
         config = Config,
         last_engine = nil,
+        active_media_stream_id = nil,
     }, App)
 
     self.elementum = ElementumClient.new(host, Config)
@@ -115,6 +116,22 @@ function App:start()
     }
 end
 
+-- Service owns its source until the next stream or service stop.
+function App:publish_media_stream(url)
+    local playable_url, new_id = self.host:prepare_media_stream(url)
+    local old_id = self.active_media_stream_id
+    self.active_media_stream_id = new_id
+    if old_id then
+        local ok, err = pcall(function()
+            return self.host:release_media_stream(old_id)
+        end)
+        if not ok then
+            self.host:log("warning", "Falha ao revogar fonte anterior: " .. tostring(err))
+        end
+    end
+    return playable_url
+end
+
 function App:route(name, params)
     params = params or {}
 
@@ -174,14 +191,16 @@ function App:route(name, params)
             return self:torrent_page()
         elseif name == "torrent_play" then
             local stream_url = self.elementum:stream_torrent(params.id, params.index)
-            local started = self.host:player_play(stream_url)
+            local playable_url = self:publish_media_stream(stream_url)
+            local started = self.host:player_play(playable_url)
             if not started then
                 error("o player do AddKo recusou a reprodução")
             end
             return self:torrent_page("Reprodução iniciada.")
         elseif name == "play_uri" then
             local stream_url = self.elementum:stream_uri(params.uri, params.index)
-            local started = self.host:player_play(stream_url)
+            local playable_url = self:publish_media_stream(stream_url)
+            local started = self.host:player_play(playable_url)
             if not started then
                 error("o player do AddKo recusou a reprodução")
             end
@@ -239,13 +258,13 @@ function App:service(name, params)
         return self.elementum:torrents()
     elseif name == "stream" then
         if params.id and tostring(params.id) ~= "" then
-            return self.elementum:stream_torrent(params.id, params.index)
+            return self:publish_media_stream(self.elementum:stream_torrent(params.id, params.index))
         end
         local uri = tostring(params.uri or "")
         if uri == "" then
             error("service stream exige params.id ou params.uri")
         end
-        return self.elementum:stream_uri(uri, params.index)
+        return self:publish_media_stream(self.elementum:stream_uri(uri, params.index))
     elseif name == "play" then
         local stream_url
         if params.id and tostring(params.id) ~= "" then
@@ -258,13 +277,14 @@ function App:service(name, params)
             stream_url = self.elementum:stream_uri(uri, params.index)
         end
 
-        local started = self.host:player_play(stream_url)
+        local playable_url = self:publish_media_stream(stream_url)
+            local started = self.host:player_play(playable_url)
         if not started then
             error("o player do AddKo recusou a reprodução")
         end
         return {
             started = true,
-            url = stream_url,
+            url = playable_url,
         }
     elseif name == "pause" then
         self.elementum:pause_torrent(params.id)
@@ -294,6 +314,14 @@ function App:service(name, params)
 end
 
 function App:stop()
+    if self.active_media_stream_id then
+        local id = self.active_media_stream_id
+        self.active_media_stream_id = nil
+        local ok, err = pcall(function() self.host:release_media_stream(id) end)
+        if not ok then
+            self.host:log("warning", "Falha ao revogar fonte na parada: " .. tostring(err))
+        end
+    end
     local daemon_success, daemon_result = pcall(function()
         return self.daemon:stop()
     end)

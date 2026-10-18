@@ -7,6 +7,8 @@ local function make_host()
         played = nil,
         requests = {},
         rpc_started = false,
+        media_sources = {},
+        media_revoked = {},
     }
 
     local host = {
@@ -157,6 +159,17 @@ local function make_host()
         return true
     end
 
+    function host:prepare_media_stream(url)
+        local id = tostring(#state.media_sources + 1)
+        state.media_sources[#state.media_sources + 1] = { id = id, upstream = url }
+        return "http://127.0.0.1:54321/media/" .. id, id
+    end
+
+    function host:release_media_stream(id)
+        state.media_revoked[#state.media_revoked + 1] = id
+        return true
+    end
+
     function host:player_play(url)
         state.played = url
         return true
@@ -227,7 +240,8 @@ test("app resolve redirect do Elementum e entrega stream ao player", function()
     })
 
     assert_equal(document.title, "Torrents")
-    assert_equal(state.played, "http://127.0.0.1:65220/files/test.mp4")
+    assert_equal(state.played, "http://127.0.0.1:54321/media/1")
+    assert_equal(state.media_sources[1].upstream, "http://127.0.0.1:65220/files/test.mp4")
 end)
 
 test("service health expõe estado do engine para plugin dependente", function()
@@ -251,7 +265,8 @@ test("service stream devolve URL local sem abrir player", function()
         uri = "magnet:?xt=urn:btih:0123456789abcdef",
     })
 
-    assert_equal(url, "http://127.0.0.1:65220/files/test.mp4")
+    assert_equal(url, "http://127.0.0.1:54321/media/1")
+    assert_equal(state.media_sources[1].upstream, "http://127.0.0.1:65220/files/test.mp4")
     assert_equal(state.played, nil)
 end)
 
@@ -265,8 +280,23 @@ test("service play resolve stream e usa player do próprio Luelement", function(
     })
 
     assert_true(result.started)
-    assert_equal(result.url, "http://127.0.0.1:65220/files/test.mp4")
+    assert_equal(result.url, "http://127.0.0.1:54321/media/1")
     assert_equal(state.played, result.url)
+end)
+
+test("Luelement revoga fonte anterior e a última ao encerrar", function()
+    local host, state = make_host()
+    local app = App.new(host)
+    app:start()
+
+    local a = app:service("stream", {uri = "magnet:?xt=urn:btih:111"})
+    local b = app:service("stream", {uri = "magnet:?xt=urn:btih:222"})
+    assert_equal(a, "http://127.0.0.1:54321/media/1")
+    assert_equal(b, "http://127.0.0.1:54321/media/2")
+    assert_equal(state.media_revoked[1], "1")
+
+    app:stop()
+    assert_equal(state.media_revoked[2], "2")
 end)
 
 test("service rejeita método desconhecido", function()

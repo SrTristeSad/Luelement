@@ -33,4 +33,11 @@ Se o AddKo instalado ainda não oferece `media_stream_proxy`,
 o Luelement preserva a reprodução anterior usando a URL direta
 `/files/...`. Essa compatibilidade não é prova de reprodução real.
 
+Além disso, o contrato de serviço expõe
+`addko.plugins.call("io.addko.luelement", "stream_stats", {})`
+para addons dependentes. A resposta contém somente métricas e códigos de
+HTTP da fonte ativa, sem tokens, cabeçalhos de autenticação ou URLs de
+origem. Em uma versão antiga do núcleo ou sem fonte ativa,
+`ready = false`.
+
 A primeira instalação ainda precisa de smoke test físico para validar FGS, JNI, libtorrent, HTTP, RPC e player.

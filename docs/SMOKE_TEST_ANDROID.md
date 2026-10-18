@@ -55,6 +55,20 @@ as bibliotecas nativas usadas pelo projeto.
 | Ponte do AddKo | URL /media com requisições Range para /files | Conferir permissão network, token e logs HTTP |
 | Player | Vídeo, pausa e seek | Conferir codec, URL /media, HTTP Range e log Flutter |
 
+## Diagnóstico de streaming
+
+O serviço Luelement oferece agora `service("stream_stats", {})`
+para um addon consumidor autorizado por `dependencies`. Ele retorna os
+contadores da ponte de streaming do AddKo: `requests`,
+`range_requests`, `bytes_forwarded`, `last_http_status` e
+`failed_requests`. Caso o player esteja usando URL direta (núcleo antigo)
+ou nenhum vídeo tenha sido iniciado, o resultado indica `ready = false`.
+
+O exemplo VideoTorrent 0.1.4 mostra esses contadores no botão
+**Diagnosticar streaming**. Se houver HTTP 200/206 e bytes transferidos
+mas nenhuma imagem, investigar o player/codec. Sem requisições ou sem bytes,
+investigar a conexão entre o player, a ponte e o motor Elementum.
+
 ## Critério de aceitação
 
 Só declarar a integração **funcional** quando um aparelho Android físico

@@ -381,6 +381,20 @@ function Host:prepare_media_stream(url)
     return registered.url, registered.id
 end
 
+function Host:media_stream_stats(id)
+    if not id then return {ready = false, reason = "no_source"} end
+    local stream = self.api.stream
+    if type(stream) ~= "table" or type(stream.stats) ~= "function" then
+        return {ready = false, reason = "unsupported"}
+    end
+    local result = stream.stats(id)
+    if type(result) ~= "table" then
+        error("Diagnóstico de streaming inválido no núcleo AddKo.")
+    end
+    result.ready = true
+    return result
+end
+
 function Host:release_media_stream(id)
     if not id then return false end
     local stream = self.api.stream

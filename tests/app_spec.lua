@@ -170,6 +170,17 @@ local function make_host()
         return true
     end
 
+    function host:media_stream_stats(id)
+        if id == nil then return {ready = false} end
+        return {
+            ready = true,
+            requests = 4,
+            range_requests = 2,
+            bytes_forwarded = 32768,
+            last_http_status = 206,
+        }
+    end
+
     function host:player_play(url)
         state.played = url
         return true
@@ -282,6 +293,21 @@ test("service play resolve stream e usa player do próprio Luelement", function(
     assert_true(result.started)
     assert_equal(result.url, "http://127.0.0.1:54321/media/1")
     assert_equal(state.played, result.url)
+end)
+
+test("diagnóstico distingue stream inativo de requisições do player", function()
+    local host, _ = make_host()
+    local app = App.new(host)
+    app:start()
+    local before = app:service("stream_stats", {})
+    assert_true(before.ready == false)
+
+    app:service("stream", {uri = "magnet:?xt=urn:btih:abcd"})
+    local info = app:service("stream_stats", {})
+    assert_true(info.ready)
+    assert_equal(info.requests, 4)
+    assert_equal(info.range_requests, 2)
+    assert_equal(info.bytes_forwarded, 32768)
 end)
 
 test("Luelement revoga fonte anterior e a última ao encerrar", function()

@@ -46,6 +46,7 @@ Já implementado no `main`:
 - player HTTP do AddKo com tela própria de reprodução;
 - integração opcional com `addko.stream.register` do núcleo AddKo para transportar `/files/...` via HTTP Range e URL local temporária;
 - revogação da fonte de mídia ao trocar de vídeo ou encerrar o serviço; fallback à URL direta em núcleos antigos;
+- método de serviço `stream_stats` para o addon consumidor diagnosticar HTTP, requisições Range, bytes enviados e falhas sem acessar informações sensíveis;
 - launcher standalone do daemon para hosts que permitam processos nativos;
 - geração de `ConfigBundle` standalone sem depender das settings do Kodi;
 - detecção de plataforma/arquitetura;
